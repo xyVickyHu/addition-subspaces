@@ -1,0 +1,20 @@
+schema_version: 1
+model:
+  name: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  dtype: bfloat16
+task:
+  family: number_add
+  prompt_format: textlabel
+  n_shot: 5
+samples:
+  activation:
+    path: log/cache/samples/3b4cc063eca361de/activation.json
+activations:
+  train:
+    path: log/cache/z/00b67a53170285e5
+  heldout:
+    path: log/cache/z/ed89f8994a112a47
+heads_artifact:
+  path: log/runs/fmt-textlabel-avg3__262fbf508e63/sig-largest_gap-v1/scan-100x20-dc90d2/recpos-paired_bh-v1-f24df003/main_heads.json
+  semantic_fingerprint: 82a5c45bd42cf585f9b7810db199713cc592bc20c07ef1d4e0b877cc2eda8a31

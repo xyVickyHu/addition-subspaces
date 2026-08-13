@@ -1,0 +1,54 @@
+# phi-4 model-axis cell, FULL leg (100/task) on the RETRAINED matrix.
+# Supersedes an earlier config that reused the ported historical matrix
+# under an accepted split caveat; that cell was WITHDRAWN
+# 2026-07-27 (4 of the 5 committed eval tasks sat in its training split) and
+# its data deleted. This config instead reuses the 2026-08-04 retrain
+# (configs/step1_number_add_phi4_train.yaml, GPU run, 2h27m, node
+# addphi4__c77452f3e0c0: 40x40, 165 nonzero, sparsity 0.897) trained ON the
+# committed split — so NO override_provenance is needed and the
+# split-provenance guard passes on its own.
+# Historical (withdrawn, ported-matrix) reference numbers for orientation
+# only: 23 gap sig heads, unified main (18,12),(18,14),(17,23), held-out
+# clean 0.928 / full_sig 0.910 / raw 0.966.
+# Site blocks.12.hook_resid_mid per configs/model_profiles.yaml (40 layers,
+# 40 heads). 80GB-node pin: phi-4 (14B) OOMs at model load on 40GB A100s.
+#   .venv/bin/python -m subspaces.runners.step1 select-significant --config <this>
+#   .venv/bin/python -m subspaces.runners.step1 make-samples      --config <this>
+#   sbatch -p YOUR_PARTITION -w YOUR_80GB_NODE --time=24:00:00 \
+#     scripts/step1_run.sbatch <this>
+schema_version: 1
+run_name: addphi4_siggap_avg3
+protocol: corrected_holdout
+model:
+  name: microsoft/phi-4
+  revision: 932b33c0ec9ca189badeb22480721a8de9d0e006
+  dtype: bfloat16
+  device: cuda
+task:
+  dataset_dir: number_add
+  prompt_format: arrow
+  n_shot: 5
+  task_split: configs/task_splits/number_add_paper.yaml
+sites:
+  inject_layer: blocks.12.hook_resid_mid
+matrix:
+  mode: reuse
+  reuse_path: log/runs/addphi4__c77452f3e0c0/matrix
+  node_name: addphi4-avg3
+  checkpoint_select: {rule: mean_last_k, k: 3}
+samples:
+  activation: {examples_per_task: 100, seed: 42, task_set: train}
+  scan: {examples_per_task: 100, seed: 42, task_set: train}
+  heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
+  final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
+significant:
+  method: largest_gap
+scan:
+  c_min: 0
+  c_max: 20
+main_selector:
+  name: unified
+  version: 1
+  params: {beta: 0.25, floor: 0.0, clean_min: 0.25, minor_z: 3.5}
+compute:
+  wandb_mode: offline

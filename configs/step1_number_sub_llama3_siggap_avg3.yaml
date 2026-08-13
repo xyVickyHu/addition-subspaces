@@ -1,0 +1,47 @@
+# P-T1c — subtract family-axis pilot (Q4 resolution: PORTED historical
+# matrix; artifacts/matrix_sub_meta-llama-3-8b-instruct_lambda0.05,
+# final-ckpt sha 0b6ca9d40688…, see artifacts/PORTED_MATRICES.md).
+# Expansion-cell defaults per the 2026-07-26 user answers: largest_gap
+# significant on the mean-last-3 substrate + unified-v1 main in-run
+# (largest_gap main via CPU select-main afterwards). FULL leg (headline
+# per Q8): scan 100/task; calib PASSED 2026-07-26 (GPU run, 53m: 28
+# gap sig heads; unified main = ADD trio + (15,17), localized; held-out
+# clean 0.526 / full_sig 0.330 / raw 0.468). Committed 26/5 subtract split
+# (recovered verbatim from the historical args.json).
+#   sbatch -p YOUR_PARTITION scripts/step1_run.sbatch <this>
+schema_version: 1
+run_name: subllama_siggap_avg3
+protocol: corrected_holdout
+model:
+  name: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  dtype: bfloat16
+  device: cuda
+task:
+  dataset_dir: "number_add[-30,0]_[1,100]"
+  prompt_format: arrow
+  n_shot: 5
+  task_split: configs/task_splits/number_add_subtract_paper.yaml
+sites:
+  inject_layer: blocks.10.hook_resid_mid
+matrix:
+  mode: reuse
+  reuse_path: "artifacts/matrix_sub_meta-llama-3-8b-instruct_lambda0.05"
+  node_name: subllama-avg3
+  checkpoint_select: {rule: mean_last_k, k: 3}
+samples:
+  activation: {examples_per_task: 100, seed: 42, task_set: train}
+  scan: {examples_per_task: 100, seed: 42, task_set: train}
+  heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
+  final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
+significant:
+  method: largest_gap
+scan:
+  c_min: 0
+  c_max: 20
+main_selector:
+  name: unified
+  version: 1
+  params: {beta: 0.25, floor: 0.12, clean_min: 0.25, minor_z: 3.5}
+compute:
+  wandb_mode: offline

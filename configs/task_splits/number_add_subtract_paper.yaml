@@ -1,0 +1,51 @@
+# Fixed 26/5 task split for the number_add[-30,0]_[1,100] (subtract (add negative k)) family — COMMITTED,
+# never regenerated from a seed. Reused across models, prompt formats,
+# matrices, and reruns. Order matches the historical args.json exactly.
+#
+# Recovered 2026-07-22 from
+#   the legacy training run args.json ([0,1]_matrix_sub_meta-llama-3-8b-instruct_lambda0.05)
+# (verified identical across the llama/phi-4/qwen2.5 runs of this family).
+# Validity caveats (recorded for reporting overlays):
+#   number-add0 is a sha256-identical identity task (duplicate of the
+#   multiply family's number-mul1); a historical mixed-task validity
+#   filter excluded it structurally, but it sits in the historical
+#   TRAIN list and is kept verbatim here.
+schema_version: 1
+family: 'number_add[-30,0]_[1,100]'
+dataset_fingerprint: 97e00cd85e9542a64f72805bc232a7f3e19e9a4bb7a6d90d3f798a5d260947e0
+source: >-
+  args.json of [0,1]_matrix_sub_meta-llama-3-8b-instruct_lambda0.05
+  (indist_keys/ood_keys; identical across the three historical model runs)
+train_tasks:
+  - number-add-23
+  - number-add-6
+  - number-add-16
+  - number-add-2
+  - number-add-13
+  - number-add-22
+  - number-add-26
+  - number-add-17
+  - number-add-3
+  - number-add-11
+  - number-add-20
+  - number-add-5
+  - number-add-24
+  - number-add-15
+  - number-add-1
+  - number-add0
+  - number-add-30
+  - number-add-28
+  - number-add-9
+  - number-add-29
+  - number-add-8
+  - number-add-10
+  - number-add-21
+  - number-add-4
+  - number-add-25
+  - number-add-14
+eval_tasks:
+  - number-add-19
+  - number-add-27
+  - number-add-12
+  - number-add-18
+  - number-add-7

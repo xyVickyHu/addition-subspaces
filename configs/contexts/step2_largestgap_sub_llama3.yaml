@@ -1,0 +1,20 @@
+schema_version: 1
+model:
+  name: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  dtype: bfloat16
+task:
+  family: number_add[-30,0]_[1,100]
+  prompt_format: arrow
+  n_shot: 5
+samples:
+  activation:
+    path: log/cache/samples/22cb0f58cabc13ab/activation.json
+activations:
+  train:
+    path: log/cache/z/94272a7962857571
+  heldout:
+    path: log/cache/z/c7b55dfe9db80ed6
+heads_artifact:
+  path: log/runs/_legacy/subllama-avg3__7a5fd2567bbf/sig-largest_gap-v1/scan-100x20-09e29a/main-largest_gap-v1-d2ee1ea5/main_heads.json
+  semantic_fingerprint: 65a7598ba6ee0a09d471380cb0ec55c66ea0972ccf6746632f5a4740d203d75c

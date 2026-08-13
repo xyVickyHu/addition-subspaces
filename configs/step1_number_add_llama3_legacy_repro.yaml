@@ -1,0 +1,48 @@
+# Step-1 LEGACY REPRODUCTION variant: addition + Llama-3-8B-Instruct under the
+# HISTORICAL protocol — all 30 tasks visible to every phase, historical sample
+# counts (test_limit=10), historical c grid (0..12), and the released weak
+# selector with the parameters the pipeline actually ran (0.2/0.01/0.01).
+#
+# Targets (repo README, bootstrap-CI evaluation, tolerance ±0.02–0.04):
+#   clean 0.8567, sum_33 0.7817, main+mean-ablation 0.7017
+# Verified repo rerun 2026-07-04: 0.860 / 0.777 / 0.703, 33 significant heads.
+#
+# NEVER compare numbers from this config against corrected_holdout numbers
+# without labeling the protocols — they differ in task scope and sample counts.
+schema_version: 1
+run_name: addllama_legacy_repro
+protocol: legacy_reproduction
+model:
+  name: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  dtype: bfloat16
+  device: cuda
+task:
+  dataset_dir: number_add
+  prompt_format: arrow
+  n_shot: 5
+  task_split: configs/task_splits/number_add_paper.yaml  # loaded for provenance; all phases use task_set=all
+sites:
+  inject_layer: blocks.10.hook_resid_mid
+matrix:
+  mode: reuse
+  reuse_path: artifacts/matrix_add_0204_clip_lambda0.05
+  checkpoint_epoch: 49
+samples:
+  activation: {examples_per_task: 100, seed: 42, task_set: all}
+  scan: {examples_per_task: 10, seed: 42, task_set: all}
+  # historical semantics used ONE shared z everywhere: mirror the activation
+  # spec (same legacy draw algorithm + seed) so the held-out z coincides
+  heldout_activation: {examples_per_task: 100, seed: 42, task_set: all}
+  final_eval: {examples_per_task: 10, seed: 42, task_set: all}
+significant:
+  method: elbow
+scan:
+  c_min: 0
+  c_max: 12
+main_selector:
+  name: recovery_weak
+  version: 1
+  params: {rel_floor: 0.2, abs_floor: 0.01, eps: 0.01}
+compute:
+  wandb_mode: offline

@@ -1,0 +1,44 @@
+# TINY FUNCTIONAL GPU SMOKE — first GPU gate (before the 20/task runtime
+# calibration). Exercises every substep end to end in minutes: 2 train tasks +
+# 1 held-out task, 2 examples per manifest, top-2 significant heads only,
+# c in 0..2. NOT a source of reported numbers and NOT a runtime estimate.
+#
+# The canonical matrix is reused on the tiny task subset, so the task_dir
+# provenance field is explicitly overridden (recorded in the artifact).
+schema_version: 1
+run_name: addllama_tinysmoke
+protocol: corrected_holdout
+model:
+  name: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  dtype: bfloat16
+  device: cuda
+task:
+  dataset_dir: number_add_tiny
+  prompt_format: arrow
+  n_shot: 5
+  task_split: configs/task_splits/number_add_tiny.yaml
+sites:
+  inject_layer: blocks.10.hook_resid_mid
+matrix:
+  mode: reuse
+  reuse_path: artifacts/matrix_add_0204_clip_lambda0.05
+  checkpoint_epoch: 49
+  override_provenance: [task_dir]  # tiny subset family, canonical add matrix
+samples:
+  activation: {examples_per_task: 2, seed: 42, task_set: train}
+  scan: {examples_per_task: 2, seed: 42, task_set: train}
+  heldout_activation: {examples_per_task: 2, seed: 1043, task_set: eval}
+  final_eval: {examples_per_task: 2, seed: 42, task_set: eval}
+significant:
+  method: elbow
+scan:
+  c_min: 0
+  c_max: 2
+  head_limit: 2
+main_selector:
+  name: unified
+  version: 1
+  params: {beta: 0.25, floor: 0.12, clean_min: 0.25, minor_z: 3.5}
+compute:
+  wandb_mode: offline

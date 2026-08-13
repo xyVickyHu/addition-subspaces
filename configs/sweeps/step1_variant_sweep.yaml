@@ -1,0 +1,175 @@
+# Machine-readable Step-1 variant-sweep manifest.
+# STATUS VALUES: ready | blocked(<question>) | approved | submitted | done.
+# Nothing beyond stage-1 pilots may be submitted before the user approves
+# the sweep table; per-pilot rules: CPU checks -> resolved-config/identity
+# validation -> GPU calib -> inspect -> full.
+schema_version: 1
+baseline:
+  model: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  family: number_add
+  split: configs/task_splits/number_add_paper.yaml
+  prompt_format: arrow
+  n_shot: 5
+  inject_layer: blocks.10.hook_resid_mid
+  scorer: {name: exact_token_match, version: 1}
+  raw_coef: {coefficient_source: final_checkpoint, head_scope: all}
+  samples: {scan: 100, final_eval: 100}
+  scan: {c_min: 0, c_max: 20}
+  selector: {name: unified, version: 1,
+             params: {beta: 0.25, floor: 0.12, clean_min: 0.25, minor_z: 3.5}}
+  protocol: corrected_holdout
+  gpu: {gres: "gpu:A100:1", partition: YOUR_PARTITION, time: "12:00:00"}  # set to your cluster's GPU partition
+  measured: {evals_per_min: 7700, batch_size: 20,
+             train_minutes_llama: 50, peak_vram_gib: 21.2}
+runs:
+  # ---- stage 1: pilots ----
+  - id: P-F1t
+    stage: 1
+    axis: format
+    overrides: {prompt_format: qa, matrix: train}
+    config: configs/step1_number_add_llama3_fmtqa_train.yaml
+    est_gpu_hours: 1.2
+    depends_on: []
+    status: done  # GPU run PASSED (1h04m)
+  - id: P-F1c
+    stage: 1
+    axis: format
+    overrides: {prompt_format: qa, matrix: "reuse:P-F1t", samples: {scan: 20}}
+    # calibration pilot; its 20-sample config is not shipped in this release
+    est_gpu_hours: 1.5
+    depends_on: [P-F1t]
+    status: done  # GPU run PASSED (1h18m; ~8.2k evals/min)
+  - id: P-F1f
+    stage: 1
+    axis: format
+    overrides: {prompt_format: qa, matrix: "reuse:P-F1t"}
+    # pre-gap-selector full qa pilot; the shipped qa cell is
+    # configs/step1_number_add_llama3_fmtqa_siggap_avg3.yaml
+    est_gpu_hours: 5.5
+    depends_on: [P-F1c]
+    status: done  # GPU run PASSED (4h37m; trio+15,17 localized)
+  - id: P-N1
+    stage: 1
+    axis: n_shot
+    # Q1 RESOLVED 2026-07-26: n in {1..10}, REUSE the canonical 5-shot
+    # matrix (avg3 node), rescan only; sig set fixed by construction.
+    # Per cell: composed run (scan 20/task per Q8 + unified eval), then CPU
+    # largest_gap main selection + follow-up evals for differing sets +
+    # pin-v1 trio (ORIGINAL 5-shot main heads) on the n-shot cache.
+    # matrix.override_provenance: [n_shot] records the deliberate reuse.
+    values: [1, 10]  # pilot extremes; N2+ covers the rest
+    configs: [configs/step1_number_add_llama3_nshot1_siggap_avg3_s20.yaml,
+              configs/step1_number_add_llama3_nshot10_siggap_avg3_s20.yaml]
+    est_gpu_hours: 2.5  # ~1.2h/cell (346.5k scan evals + z caches + eval)
+    depends_on: []
+    status: ready
+  - id: P-M1
+    stage: 1
+    axis: model
+    overrides: {model: microsoft/phi-4, revision: 932b33c0ec9ca189badeb22480721a8de9d0e006,
+                inject_layer: blocks.12.hook_resid_mid, samples: {scan: 20}}
+    gpu: {gres: "gpu:A100:1", nodelist: YOUR_80GB_NODE, time: "6:00:00"}  # 80GB A100 node (phi-4 OOMs on 40GB)
+    est_gpu_hours: null  # measures phi-4 throughput
+    depends_on: []
+    status: blocked(Q4-port pending — historical phi-4 add matrix to be copied into artifacts/ with provenance)
+  - id: P-M2t
+    stage: 1
+    axis: model
+    # Q3 RESOLVED 2026-07-26: RETRAIN Qwen2.5-7B BASE first under the new
+    # pipeline (historical recipe; 80GB-node-pinned per the cross-model OOM
+    # record). Qwen2.5-7B-Instruct, Qwen3-8B base + Instruct: MARKED
+    # MISSING (no usable matrix; not trained in this sweep).
+    overrides: {model: Qwen/Qwen2.5-7B, revision: d149729398750b98c0af14eb82c78cfe92750796,
+                matrix: train}
+    config: configs/step1_number_add_qwen25_train.yaml
+    gpu: {gres: "gpu:A100:1", nodelist: YOUR_80GB_NODE, time: "24:00:00"}  # 80GB A100 node (phi-4 OOMs on 40GB)
+    est_gpu_hours: null  # 300-epoch recipe; measures qwen train+scan cost
+    depends_on: []
+    status: ready(train leg; scan leg gated by Q5 sig-count check on the trained matrix)
+  - id: P-T1
+    stage: 1
+    axis: family
+    overrides: {family: "number_add[-30,0]_[1,100]",
+                split: configs/task_splits/number_add_subtract_paper.yaml,
+                samples: {scan: 20}}
+    est_gpu_hours: 1.5
+    depends_on: []
+    status: blocked(Q4-port pending — historical llama subtract matrix to be copied into artifacts/)
+  # ---- stage 2: remaining llama/number_add format + n-shot cells ----
+  - id: F2-F5
+    stage: 2
+    axis: format
+    values: [io, ab, textlabel, fx]
+    pattern: train -> calib -> full (as P-F1)
+    est_gpu_hours_each: 8
+    depends_on: [P-F1f]
+    status: done  # GPU runs: all format cells complete under BOTH methods (2026-07-24)
+  - id: DUAL-METHOD
+    stage: cross-cutting
+    note: >-
+      user directive 2026-07-23 — every variant runs BOTH significant
+      methods (elbow at the final checkpoint + largest_gap at mean-last-3
+      DEFAULT, pending confirmation) with per-method main selection and
+      headset eval; ~2x scan+headset GPU per cell. Gap-arm GPU pilot is
+      GPU run (known-answer check — the avg3 33-set equals the
+      canonical elbow-33, so the trio is expected).
+    status: done  # pilot + full wave passed; io/elbow verdict=none is the one method-divergent cell
+  - id: N2+
+    stage: 2
+    axis: n_shot
+    values: [2, 3, 4, 6, 7, 8, 9]  # n=5 anchor = existing add0204-avg3 full run
+    configs: configs/step1_number_add_llama3_nshot{N}_siggap_avg3_s20.yaml
+    est_gpu_hours: 9  # ~1.2h/cell breadth; 100/task headline picks deferred
+    depends_on: [P-N1]
+    status: ready-after-pilot
+  # ---- stage 3: family/model expansion ----
+  - id: T2-T4
+    stage: 3
+    axis: family
+    values: [number_mul, extractive, abstractive]
+    splits: [configs/task_splits/number_mul_paper.yaml,
+             configs/task_splits/extractive_paper.yaml,
+             configs/task_splits/abstractive_paper.yaml]
+    # Q4: port matrices; Q6: triple-report (etm v1 + family candidate A +
+    # normalized_exact v1) once the scorer pilot passes; Q7: validity
+    # overlay on historical splits (mul19/mul23 dead tasks; abstractive
+    # validity-failed tasks; present-past.json[110] empty target).
+    # Selection: largest_gap sig (mean-last-3) + largest_gap main DEFAULT,
+    # unified-v1 side-by-side.
+    est_gpu_hours_each: 5
+    depends_on: [P-T1]
+    status: blocked(matrix ports + scorer pilot)
+  - id: M1-fam
+    stage: 3
+    axis: model_x_family
+    model: microsoft/phi-4
+    values: ["number_add[-30,0]_[1,100]", number_mul, extractive, abstractive]
+    depends_on: [P-M1]
+    status: blocked(P-M1 pass + matrix ports)
+  - id: M2-fam
+    stage: 3
+    axis: model_x_family
+    model: Qwen/Qwen2.5-7B
+    values: ["number_add[-30,0]_[1,100]", number_mul, extractive, abstractive]
+    depends_on: [P-M2t]
+    status: blocked(P-M2t pass + Q5 sig-count check + matrix ports)
+  - id: M3
+    stage: 3
+    axis: model
+    model: Qwen/Qwen3-8B
+    note: >-
+      Q3 RESOLVED 2026-07-26 — MARKED MISSING together with Qwen3-8B-Instruct
+      and Qwen2.5-7B-Instruct: no usable matrix under the new pipeline; the
+      legacy-negative matrix stays unported. Explicit gap, not a cell.
+    depends_on: []
+    status: missing(user decision 2026-07-26)
+  - id: M4
+    stage: 3
+    axis: model
+    model: mistralai/Mistral-7B-v0.1
+    note: >-
+      Q6 RESOLVED 2026-07-26 — Mistral OUT (user decision; exact_token_match
+      structurally cannot score SentencePiece continuations; historical
+      clean 0.0000 on number_add).
+    status: excluded(user decision 2026-07-26)

@@ -1,0 +1,49 @@
+# Fixed 25/5 task split for the number_add (add-k) family — COMMITTED, never
+# regenerated from a seed. Reused across models, prompt formats, matrices, and
+# reruns. Order matches the historical args.json exactly.
+#
+# Recovered 2026-07-20 from
+#   the legacy training run args.json ([0,1]_matrix_add_0204_clip_lambda0.05)
+# (identical lists in artifacts/matrix_add_0204_clip_lambda0.05/args.json).
+# The historical task_dir was `number_add_1018`, which is JSON-identical to
+# this repo's dataset_files/number_add (same examples, same order; the only
+# byte difference is a trailing newline added by the release whitespace pass).
+# Canonical family: number_add.
+schema_version: 1
+family: number_add
+dataset_fingerprint: bb3baeea56c71e9b1bb4c0edccc33b32dfe63073972b22f0e12cec6e598067c3
+source: >-
+  args.json of matrix_add_0204_clip_lambda0.05 (indist_keys/ood_keys;
+  historical task_dir number_add_1018)
+train_tasks:
+  - number-add28
+  - number-add30
+  - number-add7
+  - number-add11
+  - number-add17
+  - number-add3
+  - number-add24
+  - number-add15
+  - number-add6
+  - number-add10
+  - number-add13
+  - number-add1
+  - number-add14
+  - number-add18
+  - number-add29
+  - number-add4
+  - number-add12
+  - number-add23
+  - number-add19
+  - number-add25
+  - number-add8
+  - number-add9
+  - number-add5
+  - number-add22
+  - number-add26
+eval_tasks:
+  - number-add20
+  - number-add2
+  - number-add27
+  - number-add16
+  - number-add21

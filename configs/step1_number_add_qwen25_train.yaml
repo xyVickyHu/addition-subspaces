@@ -1,0 +1,65 @@
+# Q3 resolution (user, 2026-07-26): RETRAIN Qwen2.5-7B BASE from scratch
+# under the new pipeline, before any Qwen scan/eval cell. Hyperparameters
+# are the verified historical recipe from the archived paper-repro matrix
+# the legacy run `[0,1]_matrix_add_qwen2.5-7b_paperrepro_l10_lam0.01/
+# args.json` (the ONLY working Qwen recipe; llama defaults FAIL — see
+# configs/model_profiles.yaml): lambda_l1 0.01, anneal 2, lr 0.001, bs 128,
+# 300 epochs, train_ratio 0.8, ood_limit 512, seed 42, [0,1] clip,
+# blocks.10.hook_resid_mid, arrow, 5-shot, committed add 25/5 split
+# (task_dir number_add ≡ the historical number_add_1018, byte-identical).
+# Historical anchor for the retrain outcome (paper-repro matrix): 262
+# elbow-significant heads; main heads (21,0)(21,5)(21,2)(21,4) — the
+# paper's L21 trio + (21,4). Gate-2 caveat applies: a retrain reproduces
+# shape/selection, NOT unit-coefficient composite values.
+# GPU: 80GB-node pin (cross-model record: Qwen/Phi jobs OOM on 40GB
+# A100s at model load or bs=128) — submit with
+#   sbatch -p YOUR_PARTITION -w YOUR_80GB_NODE scripts/step1_train_only.sbatch <this>
+# Downstream scan/eval legs are gated by the Q5 significant-count check
+# (largest_gap@mean-last-3 vs elbow's historical 262) before submission.
+schema_version: 1
+run_name: addqwen25_train
+protocol: corrected_holdout
+model:
+  name: Qwen/Qwen2.5-7B
+  revision: d149729398750b98c0af14eb82c78cfe92750796
+  dtype: bfloat16
+  device: cuda
+task:
+  dataset_dir: number_add
+  prompt_format: arrow
+  n_shot: 5
+  task_split: configs/task_splits/number_add_paper.yaml
+sites:
+  inject_layer: blocks.10.hook_resid_mid
+matrix:
+  mode: train
+  node_name: addqwen25
+  train:
+    lambda_l1: 0.01
+    epochs: 300
+    lr: 0.001
+    bs: 128
+    train_ratio: 0.8
+    zero_one_interval: true
+    seed: 42
+    test_gap: 5
+    n_example: 100
+    indist_limit: 2560
+    ood_limit: 512
+    anneal: 2
+samples:
+  activation: {examples_per_task: 100, seed: 42, task_set: train}
+  scan: {examples_per_task: 20, seed: 42, task_set: train}
+  heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
+  final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
+significant:
+  method: largest_gap
+scan:
+  c_min: 0
+  c_max: 20
+main_selector:
+  name: unified
+  version: 1
+  params: {beta: 0.25, floor: 0.12, clean_min: 0.25, minor_z: 3.5}
+compute:
+  wandb_mode: offline

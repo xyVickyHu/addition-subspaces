@@ -1,0 +1,47 @@
+# Fixed 22/5 task split for the extractive (extractive) family — COMMITTED,
+# never regenerated from a seed. Reused across models, prompt formats,
+# matrices, and reruns. Order matches the historical args.json exactly.
+#
+# Recovered 2026-07-22 from
+#   the legacy training run args.json ([0,1]_matrix_extractive_meta-llama-3-8b-instruct_lambda0.05)
+# (verified identical across the llama/phi-4/qwen2.5 runs of this family).
+# Validity caveats: alphabetically_first/last_{3,5} (train list) are at
+#   or below chance for all models; conll2003 tasks contain duplicate
+#   input strings (conll2003_location: 4499 entries, 3921 unique) and
+#   conll2003_location is a held-out task — sampled queries can repeat
+#   and a demo can textually equal the query.
+schema_version: 1
+family: extractive
+dataset_fingerprint: 365ad16e9bbbf9694ad5418a77644dc1ff5a683f5146661a5333a11dc25ef334
+source: >-
+  args.json of [0,1]_matrix_extractive_meta-llama-3-8b-instruct_lambda0.05
+  (indist_keys/ood_keys; identical across the three historical model runs)
+train_tasks:
+  - animal_v_object_3
+  - color_v_animal_3
+  - concept_v_object_5
+  - object_v_concept_3
+  - adjective_v_verb_3
+  - alphabetically_last_5
+  - choose_last_of_3
+  - conll2003_organization
+  - choose_middle_of_3
+  - fruit_v_animal_5
+  - alphabetically_first_3
+  - choose_last_of_5
+  - adjective_v_verb_5
+  - alphabetically_last_3
+  - alphabetically_first_5
+  - choose_middle_of_5
+  - conll2003_person
+  - animal_v_object_5
+  - choose_first_of_3
+  - color_v_animal_5
+  - concept_v_object_3
+  - verb_v_adjective_5
+eval_tasks:
+  - fruit_v_animal_3
+  - verb_v_adjective_3
+  - choose_first_of_5
+  - object_v_concept_5
+  - conll2003_location

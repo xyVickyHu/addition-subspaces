@@ -1,0 +1,57 @@
+# TINY FUNCTIONAL GPU SMOKE for the AIE baseline — first GPU gate before any
+# full aie cell (clone of step1_number_add_llama3_tinysmoke.yaml). Exercises
+# the whole chain in minutes: 2 train tasks + 1 held-out task, 3 corrupted
+# prompts/task, top-8 flat head prefix only (aie.head_limit), k=2.
+# NOT a source of reported numbers and NOT a runtime estimate.
+#   sbatch -p YOUR_PARTITION scripts/step1_aie.sbatch <this>
+schema_version: 1
+run_name: aie_addllama_tinysmoke
+protocol: corrected_holdout
+model:
+  name: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  dtype: bfloat16
+  device: cuda
+task:
+  dataset_dir: number_add_tiny
+  prompt_format: arrow
+  n_shot: 5
+  task_split: configs/task_splits/number_add_tiny.yaml
+sites:
+  inject_layer: blocks.10.hook_resid_mid
+matrix:
+  mode: reuse
+  reuse_path: artifacts/matrix_add_0204_clip_lambda0.05
+  checkpoint_epoch: 49
+  # tiny subset family on the canonical add matrix: both the task_dir and
+  # the training split necessarily differ (smoke only, never reported).
+  # NOTE: the base step1_number_add_llama3_tinysmoke.yaml predates the
+  # task_split provenance guard (2026-07-27) and currently refuses too.
+  override_provenance: [task_dir, task_split]
+samples:
+  activation: {examples_per_task: 2, seed: 42, task_set: train}
+  scan: {examples_per_task: 2, seed: 42, task_set: train}
+  heldout_activation: {examples_per_task: 2, seed: 1043, task_set: eval}
+  final_eval: {examples_per_task: 2, seed: 42, task_set: eval}
+  aie_corrupted: {examples_per_task: 3, seed: 42, task_set: train}
+significant:
+  method: elbow
+scan:
+  c_min: 0
+  c_max: 2
+  head_limit: 2
+main_selector:
+  name: unified
+  version: 1
+  params: {beta: 0.25, floor: 0.12, clean_min: 0.25, minor_z: 3.5}
+aie:
+  methods: [cie_replace, zs_add_proxy]
+  corrupted_examples_per_task: 3
+  corrupted_seed: 42
+  corruption_tries: 20
+  k_values: [2]
+  batch_size: 4
+  proxy_batch_size: 4
+  head_limit: 8
+compute:
+  wandb_mode: offline

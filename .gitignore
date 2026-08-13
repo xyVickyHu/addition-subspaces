@@ -1,0 +1,21 @@
+# Run outputs (bare duplicates cover checkouts where these are symlinks —
+# trailing-slash patterns match directories only)
+log/
+log
+wandb/
+subspaces/runs/
+results/
+savevars/
+
+# Python
+__pycache__/
+.ipynb_checkpoints
+.venv/
+.venv
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Model/tensor files — keep only the shipped canonical artifacts
+*.pth
+!artifacts/**/*.pth

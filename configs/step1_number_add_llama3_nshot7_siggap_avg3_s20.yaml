@@ -1,0 +1,54 @@
+# n-shot axis cell (Q1, user answers 2026-07-26): n_shot=7, canonical
+# add matrix REUSED (published-E9 style — one matrix, rescan only), sig set
+# FIXED by construction (significant heads depend only on the matrix; the
+# avg3 largest_gap 33-set == canonical elbow-33). n_shot changes the demo
+# count in n-shot prompts (clean baseline + z estimation); every FV
+# intervention still runs on the ZERO-SHOT prompt, so scan cost is
+# n-independent. override_provenance names n_shot: the archived args.json
+# records the matrix was TRAINED at n_shot=5 — reusing it at n_shot=7 is
+# the deliberate experiment, not a provenance accident.
+# Breadth cell per Q8: scan 20/task; final_eval stays 100/task.
+# Shared overridden matrix node (add0204-avg3-novr): override_provenance
+# joins the matrix-node identity, so n!=5 requests cannot share the
+# exact-provenance add0204-avg3 node (refusal verified, GPU runs)
+# — but provenance_check records the TRAINED side + the override LIST
+# only, so ALL n!=5 requests share ONE identity and ONE node (same
+# content key bd1155ba9f53; per-n separation happens at the scan level
+# through the n-dependent sample/z-cache fingerprints).
+schema_version: 1
+run_name: addllama_nshot7_siggap_avg3_s20
+protocol: corrected_holdout
+model:
+  name: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  dtype: bfloat16
+  device: cuda
+task:
+  dataset_dir: number_add
+  prompt_format: arrow
+  n_shot: 7
+  task_split: configs/task_splits/number_add_paper.yaml
+sites:
+  inject_layer: blocks.10.hook_resid_mid
+matrix:
+  mode: reuse
+  reuse_path: artifacts/matrix_add_0204_clip_lambda0.05
+  node_name: add0204-avg3-novr
+  checkpoint_select: {rule: mean_last_k, k: 3}
+  override_provenance: [n_shot]
+samples:
+  activation: {examples_per_task: 100, seed: 42, task_set: train}
+  scan: {examples_per_task: 20, seed: 42, task_set: train}
+  heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
+  final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
+significant:
+  method: largest_gap
+scan:
+  c_min: 0
+  c_max: 20
+main_selector:
+  name: unified
+  version: 1
+  params: {beta: 0.25, floor: 0.12, clean_min: 0.25, minor_z: 3.5}
+compute:
+  wandb_mode: offline

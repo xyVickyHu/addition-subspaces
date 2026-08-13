@@ -1,0 +1,45 @@
+# Step-1 reference variant: addition + Llama-3-8B-Instruct, CORRECTED 25/5
+# holdout protocol (the new default). Selection (activation estimation,
+# recovery scan, selection-time baselines, mean_z) sees only the 25 training
+# tasks; the 5 held-out tasks are touched only by evaluate-headset.
+#
+# scan.examples_per_task=100: every unique query used exactly once. Launching
+# this full scan (~1.73M evaluations) requires explicit approval with a
+# measured runtime estimate from a reduced-sample calibration run, per the
+# project's gate ladder.
+schema_version: 1
+run_name: addllama_corrected
+protocol: corrected_holdout
+model:
+  name: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  dtype: bfloat16
+  device: cuda
+task:
+  dataset_dir: number_add
+  prompt_format: arrow
+  n_shot: 5
+  task_split: configs/task_splits/number_add_paper.yaml
+sites:
+  inject_layer: blocks.10.hook_resid_mid
+matrix:
+  mode: reuse
+  reuse_path: artifacts/matrix_add_0204_clip_lambda0.05
+  node_name: add0204
+  checkpoint_epoch: 49
+samples:
+  activation: {examples_per_task: 100, seed: 42, task_set: train}
+  scan: {examples_per_task: 100, seed: 42, task_set: train}
+  heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
+  final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
+significant:
+  method: elbow
+scan:
+  c_min: 0
+  c_max: 20
+main_selector:
+  name: unified
+  version: 1
+  params: {beta: 0.25, floor: 0.12, clean_min: 0.25, minor_z: 3.5}
+compute:
+  wandb_mode: offline

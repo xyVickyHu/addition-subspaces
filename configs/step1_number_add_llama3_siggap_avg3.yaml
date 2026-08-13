@@ -1,0 +1,44 @@
+# largest_gap over the MEAN of the canonical matrix's last 3 checkpoints
+# (epochs 47-49). Motivation: the final
+# checkpoint catches boundary heads mid-fall and flips the largest-gap cut
+# to 28 by a 0.0025 near-tie; the trailing mean restores the canonical
+# 33-head selection (exactly the elbow-33 set) at every window k=2..5 and
+# every rolling end-epoch 34-49, with ~10x margins. The derived checkpoint
+# is materialized under the matrix node with its own sha256 + source
+# provenance; it forms its OWN matrix node (content differs from ep49).
+schema_version: 1
+run_name: addllama_siggap_avg3
+protocol: corrected_holdout
+model:
+  name: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  dtype: bfloat16
+  device: cuda
+task:
+  dataset_dir: number_add
+  prompt_format: arrow
+  n_shot: 5
+  task_split: configs/task_splits/number_add_paper.yaml
+sites:
+  inject_layer: blocks.10.hook_resid_mid
+matrix:
+  mode: reuse
+  reuse_path: artifacts/matrix_add_0204_clip_lambda0.05
+  node_name: add0204-avg3
+  checkpoint_select: {rule: mean_last_k, k: 3}
+samples:
+  activation: {examples_per_task: 100, seed: 42, task_set: train}
+  scan: {examples_per_task: 100, seed: 42, task_set: train}
+  heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
+  final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
+significant:
+  method: largest_gap
+scan:
+  c_min: 0
+  c_max: 20
+main_selector:
+  name: unified
+  version: 1
+  params: {beta: 0.25, floor: 0.12, clean_min: 0.25, minor_z: 3.5}
+compute:
+  wandb_mode: offline

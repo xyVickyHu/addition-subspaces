@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper listed under preferred-citation."
+type: software
+title: "addition-subspaces: code for 'Understanding In-context Learning of Addition via Activation Subspaces'"
+authors:
+  - family-names: Hu
+    given-names: Xinyan
+  - family-names: Yin
+    given-names: Kayo
+  - family-names: Jordan
+    given-names: Michael I.
+  - family-names: Steinhardt
+    given-names: Jacob
+  - family-names: Chen
+    given-names: Lijie
+repository-code: "https://github.com/xyVickyHu/addition-subspaces"
+license: MIT
+preferred-citation:
+  type: conference-paper
+  title: "Understanding In-context Learning of Addition via Activation Subspaces"
+  authors:
+    - family-names: Hu
+      given-names: Xinyan
+    - family-names: Yin
+      given-names: Kayo
+    - family-names: Jordan
+      given-names: Michael I.
+    - family-names: Steinhardt
+      given-names: Jacob
+    - family-names: Chen
+      given-names: Lijie
+  collection-title: "Conference on Language Modeling (COLM)"
+  year: 2026
+  url: "https://arxiv.org/abs/2505.05145"
+  identifiers:
+    - type: other
+      value: "arXiv:2505.05145"
+      description: "arXiv preprint"

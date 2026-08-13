@@ -1,0 +1,14 @@
+# Tiny 3-task split for the FUNCTIONAL GPU smoke test only (2 train + 1
+# held-out, drawn from the paper split's respective sides). Never a source of
+# reported numbers. Committed, never seed-generated.
+schema_version: 1
+family: number_add_tiny
+dataset_fingerprint: b705b2f0783c326d027df654c21bdb66c14fcaecacf377e60eef151177655925
+source: >-
+  subset of number_add for the tiny functional smoke: train tasks from the
+  paper split's train side (k=5,7), held-out task from its eval side (k=2)
+train_tasks:
+  - number-add5
+  - number-add7
+eval_tasks:
+  - number-add2

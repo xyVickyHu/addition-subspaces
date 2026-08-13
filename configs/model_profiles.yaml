@@ -1,0 +1,82 @@
+# Model profiles for the Step-1 variant sweep — the single source of truth
+# for per-model settings when authoring variant configs (machine-readable;
+# consumed by humans and by sweep tooling, not loaded by subspaces.step1 itself).
+#
+# Every profile field is recovered from the historical training runs
+# (per-run args.json, sbatch launchers) or computed from the HF cache
+# (config.json, refs/main). Revisions are the cache's immutable snapshot
+# hashes; all five models must be fully cached locally (flat layout — jobs
+# must export BOTH HF_HOME and TRANSFORMERS_CACHE to the same directory;
+# offline loads need no token).
+schema_version: 1
+profiles:
+  llama3-8b-instruct:
+    model_name: meta-llama/Meta-Llama-3-8B-Instruct
+    revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+    n_layers: 32
+    n_heads: 32
+    inject_layer: blocks.10.hook_resid_mid
+    train: {lambda_l1: 0.05, anneal: 1, lr: 0.01, bs: 128, epochs: 50,
+            train_ratio: 0.8, ood_limit: 512}
+    tokenizer: {digit_split: false, sentencepiece_prefix: false,
+                single_token_add_answers: 0.86}
+    gpu: {min_vram_gib: 40, node_pin: null, measured_peak_gib: 21.2}
+    status: baseline (Step-1 accepted 2026-07-22)
+  phi-4:
+    model_name: microsoft/phi-4
+    revision: 932b33c0ec9ca189badeb22480721a8de9d0e006
+    n_layers: 40
+    n_heads: 40
+    inject_layer: blocks.12.hook_resid_mid
+    train: {lambda_l1: 0.05, anneal: 1, lr: 0.01, bs: 32, epochs: 50,
+            train_ratio: 0.9, ood_limit: 256}
+    tokenizer: {digit_split: false, sentencepiece_prefix: false}
+    gpu: {min_vram_gib: 80, node_pin: null,  # set to your cluster's 80GB-A100 node
+          note: "14B OOMs at model load on 40GB A100s — pin EVERY stage"}
+    status: historical (add/sub/mul/extractive/abstractive matrices exist)
+  qwen2.5-7b:
+    model_name: Qwen/Qwen2.5-7B          # BASE model — the canonical choice;
+    # the Instruct variant's matrix COLLAPSED historically (7 heads, FV 0.02,
+    # archived to _legacy). Confirm base-vs-instruct before authoring configs.
+    revision: d149729398750b98c0af14eb82c78cfe92750796
+    n_layers: 28
+    n_heads: 28
+    inject_layer: blocks.10.hook_resid_mid
+    train: {lambda_l1: 0.01, anneal: 2, lr: 0.001, bs: 128, epochs: 300,
+            train_ratio: 0.8, ood_limit: 512,
+            note: "the ONLY working recipe (paper-repro); llama defaults FAIL"}
+    tokenizer: {digit_split: true, sentencepiece_prefix: false,
+                single_token_add_answers: 0.012,
+                note: "unit-coef FV metrics collapse — report raw_coef"}
+    gpu: {min_vram_gib: 40, node_pin: null,
+          note: "80GB node when bs=128 on semantic/mixed prompts;
+                 262-310 significant heads -> ~8x llama scan cost"}
+    status: historical (canonical add matrix reproduces paper L21 quartet)
+  qwen3-8b:
+    model_name: Qwen/Qwen3-8B
+    revision: b968826d9c46dd6066d109eabc6255188de91218
+    n_layers: 36
+    n_heads: 32
+    inject_layer: blocks.11.hook_resid_mid
+    train: {lambda_l1: 0.05, anneal: 1, lr: 0.01, bs: 32, epochs: 50,
+            train_ratio: 0.9, ood_limit: 256}
+    tokenizer: {digit_split: true, sentencepiece_prefix: false,
+                note: "unit-coef 0.018 vs trained-coef 0.562 historically"}
+    gpu: {min_vram_gib: 40, node_pin: null}
+    status: legacy-negative (historical run predates the unified selector;
+      0 main heads under the OLD rule — re-select under unified-v1 if used)
+  mistral-7b-v0.1:
+    model_name: mistralai/Mistral-7B-v0.1
+    revision: 27d67f1b5f57dc0953326b2601d68371d40ea8da
+    n_layers: 32
+    n_heads: 32
+    inject_layer: blocks.10.hook_resid_mid
+    train: {lambda_l1: 0.05, anneal: 1, lr: 0.01, bs: 64, epochs: 50,
+            train_ratio: 0.9, ood_limit: 256}
+    tokenizer: {digit_split: true, sentencepiece_prefix: true,
+                note: "SentencePiece '▁' prefix: standalone-target exact-token
+                       scoring can NEVER match — structurally broken scorer"}
+    gpu: {min_vram_gib: 40, node_pin: null}
+    status: known-negative control (clean 0.0000 on number_add historically;
+      recovery undefined at clean~0 — keep out of the sweep proper unless the
+      scorer/format question is resolved)

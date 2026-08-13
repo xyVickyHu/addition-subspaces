@@ -1,0 +1,20 @@
+schema_version: 1
+model:
+  name: microsoft/phi-4
+  revision: 932b33c0ec9ca189badeb22480721a8de9d0e006
+  dtype: bfloat16
+task:
+  family: number_add
+  prompt_format: arrow
+  n_shot: 5
+samples:
+  activation:
+    path: log/cache/samples/c967148ec5730dde/activation.json
+activations:
+  train:
+    path: log/cache/z/a3b91c0b1e743504
+  heldout:
+    path: log/cache/z/5ebbf0050f73c524
+heads_artifact:
+  path: log/runs/addphi4-avg3__5469d5a838d5/sig-largest_gap-v1/scan-100x20-0ad3dc/recpos-paired_bh-v1-5834da43/main_heads.json
+  semantic_fingerprint: 8dbefc8c5fd662280c8ff2776c112ed604cab9e7c7d96028b106ed936da2d3a8

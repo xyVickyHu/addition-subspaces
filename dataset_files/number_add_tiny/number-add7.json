@@ -1,0 +1,402 @@
+[
+    {
+        "input": "1",
+        "output": "8"
+    },
+    {
+        "input": "2",
+        "output": "9"
+    },
+    {
+        "input": "3",
+        "output": "10"
+    },
+    {
+        "input": "4",
+        "output": "11"
+    },
+    {
+        "input": "5",
+        "output": "12"
+    },
+    {
+        "input": "6",
+        "output": "13"
+    },
+    {
+        "input": "7",
+        "output": "14"
+    },
+    {
+        "input": "8",
+        "output": "15"
+    },
+    {
+        "input": "9",
+        "output": "16"
+    },
+    {
+        "input": "10",
+        "output": "17"
+    },
+    {
+        "input": "11",
+        "output": "18"
+    },
+    {
+        "input": "12",
+        "output": "19"
+    },
+    {
+        "input": "13",
+        "output": "20"
+    },
+    {
+        "input": "14",
+        "output": "21"
+    },
+    {
+        "input": "15",
+        "output": "22"
+    },
+    {
+        "input": "16",
+        "output": "23"
+    },
+    {
+        "input": "17",
+        "output": "24"
+    },
+    {
+        "input": "18",
+        "output": "25"
+    },
+    {
+        "input": "19",
+        "output": "26"
+    },
+    {
+        "input": "20",
+        "output": "27"
+    },
+    {
+        "input": "21",
+        "output": "28"
+    },
+    {
+        "input": "22",
+        "output": "29"
+    },
+    {
+        "input": "23",
+        "output": "30"
+    },
+    {
+        "input": "24",
+        "output": "31"
+    },
+    {
+        "input": "25",
+        "output": "32"
+    },
+    {
+        "input": "26",
+        "output": "33"
+    },
+    {
+        "input": "27",
+        "output": "34"
+    },
+    {
+        "input": "28",
+        "output": "35"
+    },
+    {
+        "input": "29",
+        "output": "36"
+    },
+    {
+        "input": "30",
+        "output": "37"
+    },
+    {
+        "input": "31",
+        "output": "38"
+    },
+    {
+        "input": "32",
+        "output": "39"
+    },
+    {
+        "input": "33",
+        "output": "40"
+    },
+    {
+        "input": "34",
+        "output": "41"
+    },
+    {
+        "input": "35",
+        "output": "42"
+    },
+    {
+        "input": "36",
+        "output": "43"
+    },
+    {
+        "input": "37",
+        "output": "44"
+    },
+    {
+        "input": "38",
+        "output": "45"
+    },
+    {
+        "input": "39",
+        "output": "46"
+    },
+    {
+        "input": "40",
+        "output": "47"
+    },
+    {
+        "input": "41",
+        "output": "48"
+    },
+    {
+        "input": "42",
+        "output": "49"
+    },
+    {
+        "input": "43",
+        "output": "50"
+    },
+    {
+        "input": "44",
+        "output": "51"
+    },
+    {
+        "input": "45",
+        "output": "52"
+    },
+    {
+        "input": "46",
+        "output": "53"
+    },
+    {
+        "input": "47",
+        "output": "54"
+    },
+    {
+        "input": "48",
+        "output": "55"
+    },
+    {
+        "input": "49",
+        "output": "56"
+    },
+    {
+        "input": "50",
+        "output": "57"
+    },
+    {
+        "input": "51",
+        "output": "58"
+    },
+    {
+        "input": "52",
+        "output": "59"
+    },
+    {
+        "input": "53",
+        "output": "60"
+    },
+    {
+        "input": "54",
+        "output": "61"
+    },
+    {
+        "input": "55",
+        "output": "62"
+    },
+    {
+        "input": "56",
+        "output": "63"
+    },
+    {
+        "input": "57",
+        "output": "64"
+    },
+    {
+        "input": "58",
+        "output": "65"
+    },
+    {
+        "input": "59",
+        "output": "66"
+    },
+    {
+        "input": "60",
+        "output": "67"
+    },
+    {
+        "input": "61",
+        "output": "68"
+    },
+    {
+        "input": "62",
+        "output": "69"
+    },
+    {
+        "input": "63",
+        "output": "70"
+    },
+    {
+        "input": "64",
+        "output": "71"
+    },
+    {
+        "input": "65",
+        "output": "72"
+    },
+    {
+        "input": "66",
+        "output": "73"
+    },
+    {
+        "input": "67",
+        "output": "74"
+    },
+    {
+        "input": "68",
+        "output": "75"
+    },
+    {
+        "input": "69",
+        "output": "76"
+    },
+    {
+        "input": "70",
+        "output": "77"
+    },
+    {
+        "input": "71",
+        "output": "78"
+    },
+    {
+        "input": "72",
+        "output": "79"
+    },
+    {
+        "input": "73",
+        "output": "80"
+    },
+    {
+        "input": "74",
+        "output": "81"
+    },
+    {
+        "input": "75",
+        "output": "82"
+    },
+    {
+        "input": "76",
+        "output": "83"
+    },
+    {
+        "input": "77",
+        "output": "84"
+    },
+    {
+        "input": "78",
+        "output": "85"
+    },
+    {
+        "input": "79",
+        "output": "86"
+    },
+    {
+        "input": "80",
+        "output": "87"
+    },
+    {
+        "input": "81",
+        "output": "88"
+    },
+    {
+        "input": "82",
+        "output": "89"
+    },
+    {
+        "input": "83",
+        "output": "90"
+    },
+    {
+        "input": "84",
+        "output": "91"
+    },
+    {
+        "input": "85",
+        "output": "92"
+    },
+    {
+        "input": "86",
+        "output": "93"
+    },
+    {
+        "input": "87",
+        "output": "94"
+    },
+    {
+        "input": "88",
+        "output": "95"
+    },
+    {
+        "input": "89",
+        "output": "96"
+    },
+    {
+        "input": "90",
+        "output": "97"
+    },
+    {
+        "input": "91",
+        "output": "98"
+    },
+    {
+        "input": "92",
+        "output": "99"
+    },
+    {
+        "input": "93",
+        "output": "100"
+    },
+    {
+        "input": "94",
+        "output": "101"
+    },
+    {
+        "input": "95",
+        "output": "102"
+    },
+    {
+        "input": "96",
+        "output": "103"
+    },
+    {
+        "input": "97",
+        "output": "104"
+    },
+    {
+        "input": "98",
+        "output": "105"
+    },
+    {
+        "input": "99",
+        "output": "106"
+    },
+    {
+        "input": "100",
+        "output": "107"
+    }
+]

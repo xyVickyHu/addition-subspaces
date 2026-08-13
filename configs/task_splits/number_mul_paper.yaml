@@ -1,0 +1,50 @@
+# Fixed 25/5 task split for the number_mul (multiply) family — COMMITTED,
+# never regenerated from a seed. Reused across models, prompt formats,
+# matrices, and reruns. Order matches the historical args.json exactly.
+#
+# Recovered 2026-07-22 from
+#   the legacy training run args.json ([0,1]_matrix_mul_meta-llama-3-8b-instruct_lambda0.05)
+# (verified identical across the llama/phi-4/qwen2.5 runs of this family).
+# Validity caveats: number-mul19 and number-mul23 (both in the held-out
+#   list) are below the 0.2 clean floor for ALL THREE historical models
+#   (llama clean 0.08/0.0); number-mul1 is an identity task in the train
+#   list. Kept verbatim per the recovered-split policy; reports should
+#   show valid-only aggregates alongside full-split aggregates.
+schema_version: 1
+family: number_mul
+dataset_fingerprint: fda758934d6b25230c1f6bf1e8b0c5b084f3df358120b838f1e0b9d208705c18
+source: >-
+  args.json of [0,1]_matrix_mul_meta-llama-3-8b-instruct_lambda0.05
+  (indist_keys/ood_keys; identical across the three historical model runs)
+train_tasks:
+  - number-mul28
+  - number-mul30
+  - number-mul4
+  - number-mul24
+  - number-mul15
+  - number-mul11
+  - number-mul5
+  - number-mul25
+  - number-mul14
+  - number-mul1
+  - number-mul10
+  - number-mul21
+  - number-mul18
+  - number-mul29
+  - number-mul9
+  - number-mul7
+  - number-mul27
+  - number-mul3
+  - number-mul12
+  - number-mul6
+  - number-mul26
+  - number-mul17
+  - number-mul2
+  - number-mul13
+  - number-mul22
+eval_tasks:
+  - number-mul16
+  - number-mul8
+  - number-mul19
+  - number-mul23
+  - number-mul20

@@ -1,0 +1,47 @@
+# T3 — extractive family cell (Llama-3; ported historical matrix,
+# PARTIAL 0..32 of 50 — the PUBLISHED matrix; final checkpoint = ep32,
+# so raw_coef uses ep32 and mean-last-3 averages eps 30-32).
+# Split discipline: the committed extractive_paper.yaml split's TRAIN
+# tasks were used to train this (ported) matrix and are the only tasks seen
+# by significance/scan/selection; the 5 held-out tasks produce every
+# reported accuracy (100/task, materialized only by evaluate-headset).
+# FULL leg (headline per Q8): scan 100/task; calib PASSED 2026-07-27 (job
+# 57m: 15 gap sig heads; unified verdict DISTRIBUTED — 11 main
+# heads led by (15,1) .557; held-out clean 0.810 / raw 0.510; mean_fv
+# floor 0.29 = choice-task chance, not ~0.03).
+schema_version: 1
+run_name: extrllama_siggap_avg3
+protocol: corrected_holdout
+model:
+  name: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  dtype: bfloat16
+  device: cuda
+task:
+  dataset_dir: extractive
+  prompt_format: arrow
+  n_shot: 5
+  task_split: configs/task_splits/extractive_paper.yaml
+sites:
+  inject_layer: blocks.10.hook_resid_mid
+matrix:
+  mode: reuse
+  reuse_path: artifacts/matrix_extractive_meta-llama-3-8b-instruct_lambda0.05
+  node_name: extrllama-avg3
+  checkpoint_select: {rule: mean_last_k, k: 3}
+samples:
+  activation: {examples_per_task: 100, seed: 42, task_set: train}
+  scan: {examples_per_task: 100, seed: 42, task_set: train}
+  heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
+  final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
+significant:
+  method: largest_gap
+scan:
+  c_min: 0
+  c_max: 20
+main_selector:
+  name: unified
+  version: 1
+  params: {beta: 0.25, floor: 0.12, clean_min: 0.25, minor_z: 3.5}
+compute:
+  wandb_mode: offline

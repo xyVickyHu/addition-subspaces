@@ -1,0 +1,57 @@
+# AIE baseline cell — number_add / Llama-3, n_shot=10 (clone of
+# step1_number_add_llama3_nshot10_siggap_avg3_s20.yaml + the aie blocks).
+# AIE IS n-shot-dependent even though it is matrix-independent: the CIE
+# corrupted prompts are 10-shot demonstration prompts with shuffled labels,
+# and the held-out z̄ the unit-FV is built from is extracted at n_shot=10 —
+# so no cell can be reused across n. k rationale: 33 = sig-matched (the
+# n-shot arms all share the canonical 33-head largest_gap set, FIXED by
+# construction since significance depends only on the matrix); 20 = paper.
+# override_provenance names n_shot for the same reason as the sweep cell.
+#   .venv/bin/python -m subspaces.runners.step1 make-samples --config <this>   # CPU
+#   sbatch -p YOUR_PARTITION scripts/step1_aie.sbatch <this>               # GPU
+schema_version: 1
+run_name: aie_nshot10llama
+protocol: corrected_holdout
+model:
+  name: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  dtype: bfloat16
+  device: cuda
+task:
+  dataset_dir: number_add
+  prompt_format: arrow
+  n_shot: 10
+  task_split: configs/task_splits/number_add_paper.yaml
+sites:
+  inject_layer: blocks.10.hook_resid_mid
+matrix:
+  mode: reuse
+  reuse_path: artifacts/matrix_add_0204_clip_lambda0.05
+  node_name: add0204-avg3-novr
+  checkpoint_select: {rule: mean_last_k, k: 3}
+  override_provenance: [n_shot]
+samples:
+  activation: {examples_per_task: 100, seed: 42, task_set: train}
+  scan: {examples_per_task: 20, seed: 42, task_set: train}
+  heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
+  final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
+  aie_corrupted: {examples_per_task: 25, seed: 42, task_set: train}
+significant:
+  method: largest_gap
+scan:
+  c_min: 0
+  c_max: 20
+main_selector:
+  name: unified
+  version: 1
+  params: {beta: 0.25, floor: 0.0, clean_min: 0.25, minor_z: 3.5}
+aie:
+  methods: [cie_replace, zs_add_proxy]
+  corrupted_examples_per_task: 25
+  corrupted_seed: 42
+  corruption_tries: 20
+  k_values: [33, 20]
+  batch_size: 25
+  proxy_batch_size: 100
+compute:
+  wandb_mode: offline

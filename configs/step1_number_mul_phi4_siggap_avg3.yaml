@@ -1,0 +1,50 @@
+# phi-4 multiplication family cell (25/5 split; mul19/mul23 dead held-out documented in the split yaml)
+# Stage-3 cross-model cell (user directive 2026-08-06: run the 4 phi-4
+# non-add cells under the adopted protocol; qwen non-add descoped).
+# PORTED historical matrix (verified EXACT, train∩eval
+# = ∅; artifacts/PORTED_MATRICES.md); committed split recovered verbatim
+# from the historical args.json. Adopted defaults: largest_gap@avg3 sig +
+# unified-v1 floor-0 main. The June 2026 legacy-run numbers for this cell
+# are LEGACY-PROTOCOL (elbow@final + recovery_weak, pooled train+heldout
+# 20/t unseeded) and are not comparable.
+# 80GB-node pin: phi-4 (14B) OOMs at model load on 40GB A100s.
+#   .venv/bin/python -m subspaces.runners.step1 select-significant --config <this>
+#   .venv/bin/python -m subspaces.runners.step1 make-samples      --config <this>
+#   sbatch -p YOUR_PARTITION -w YOUR_80GB_NODE --time=24:00:00 \
+#     scripts/step1_run.sbatch <this>
+schema_version: 1
+run_name: mulphi4_siggap_avg3
+protocol: corrected_holdout
+model:
+  name: microsoft/phi-4
+  revision: 932b33c0ec9ca189badeb22480721a8de9d0e006
+  dtype: bfloat16
+  device: cuda
+task:
+  dataset_dir: number_mul
+  prompt_format: arrow
+  n_shot: 5
+  task_split: configs/task_splits/number_mul_paper.yaml
+sites:
+  inject_layer: blocks.12.hook_resid_mid
+matrix:
+  mode: reuse
+  reuse_path: artifacts/matrix_mul_phi-4_lambda0.05
+  node_name: mulphi4-avg3
+  checkpoint_select: {rule: mean_last_k, k: 3}
+samples:
+  activation: {examples_per_task: 100, seed: 42, task_set: train}
+  scan: {examples_per_task: 100, seed: 42, task_set: train}
+  heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
+  final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
+significant:
+  method: largest_gap
+scan:
+  c_min: 0
+  c_max: 20
+main_selector:
+  name: unified
+  version: 1
+  params: {beta: 0.25, floor: 0.0, clean_min: 0.25, minor_z: 3.5}
+compute:
+  wandb_mode: offline

@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "addition-subspaces"
+version = "0.1.0"
+description = "Understanding In-context Learning of Addition via Activation Subspaces"
+requires-python = ">=3.10"
+dependencies = [
+    "torch",
+    "transformers",
+    "transformer_lens",
+    "scikit-learn",
+    "scipy",
+    "matplotlib",
+    "numpy",
+    "wandb",
+    "huggingface_hub",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+# Pinned dev toolchain — keep in sync with .pre-commit-config.yaml revs and CI.
+dev = [
+    "black==26.5.1",
+    "ruff==0.15.22",
+    "pytest==9.1.1",
+    "pre-commit==4.6.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["subspaces*"]
+
+[tool.black]
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM"]
+# E501: line length is owned by black; remaining hits are unsplittable strings/comments.
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Package __init__ files re-export the public API.
+"__init__.py" = ["F401"]
+# ---------------------------------------------------------------------------
+# TEMPORARY: legacy code predating the Step-1
+# refactor lints under its historical style. Do NOT add new files here; new
+# code (subspaces/paths.py, subspaces/config.py, subspaces/artifacts.py, subspaces/head_sets.py,
+# subspaces/step1/, subspaces/step2/, subspaces/step3/, subspaces/runners/{step1,step2,step3,run_all}.py,
+# tests/) carries no exemptions. Entries are removed as files are modernized.
+# ---------------------------------------------------------------------------
+"subspaces/utils/*.py" = ["E402", "E731", "E741", "F811", "F821", "F841", "B006", "B007", "B023", "B905", "SIM102", "SIM105", "SIM108", "SIM113", "SIM114", "SIM115", "SIM118", "UP006", "UP007", "UP015", "UP032", "UP035", "UP038", "UP045"]
+"subspaces/runners/train_matrix.py" = ["E402", "E731", "E741", "F811", "F821", "F841", "B006", "B007", "B023", "B905", "SIM102", "SIM105", "SIM108", "SIM113", "SIM114", "SIM115", "SIM118", "UP006", "UP007", "UP015", "UP032", "UP035", "UP038", "UP045"]
+"subspaces/runners/run_pipeline.py" = ["E402", "E731", "E741", "F811", "F821", "F841", "B006", "B007", "B023", "B905", "SIM102", "SIM105", "SIM108", "SIM113", "SIM114", "SIM115", "SIM118", "UP006", "UP007", "UP015", "UP032", "UP035", "UP038", "UP045"]
+"subspaces/runners/run_head_select.py" = ["E402", "E731", "E741", "F811", "F821", "F841", "B006", "B007", "B023", "B905", "SIM102", "SIM105", "SIM108", "SIM113", "SIM114", "SIM115", "SIM118", "UP006", "UP007", "UP015", "UP032", "UP035", "UP038", "UP045"]
+"subspaces/runners/run_head_eval.py" = ["E402", "E731", "E741", "F811", "F821", "F841", "B006", "B007", "B023", "B905", "SIM102", "SIM105", "SIM108", "SIM113", "SIM114", "SIM115", "SIM118", "UP006", "UP007", "UP015", "UP032", "UP035", "UP038", "UP045"]
+"subspaces/runners/run_head_sum_eval.py" = ["E402", "E731", "E741", "F811", "F821", "F841", "B006", "B007", "B023", "B905", "SIM102", "SIM105", "SIM108", "SIM113", "SIM114", "SIM115", "SIM118", "UP006", "UP007", "UP015", "UP032", "UP035", "UP038", "UP045"]
+"subspaces/runners/run_pca_decomposition.py" = ["E402", "E731", "E741", "F811", "F821", "F841", "B006", "B007", "B023", "B905", "SIM102", "SIM105", "SIM108", "SIM113", "SIM114", "SIM115", "SIM118", "UP006", "UP007", "UP015", "UP032", "UP035", "UP038", "UP045"]
+"subspaces/runners/run_signal_extraction.py" = ["E402", "E731", "E741", "F811", "F821", "F841", "B006", "B007", "B023", "B905", "SIM102", "SIM105", "SIM108", "SIM113", "SIM114", "SIM115", "SIM118", "UP006", "UP007", "UP015", "UP032", "UP035", "UP038", "UP045"]
+"subspaces/runners/verify_reproducibility.py" = ["E402", "E731", "E741", "F811", "F821", "F841", "B006", "B007", "B023", "B905", "SIM102", "SIM105", "SIM108", "SIM113", "SIM114", "SIM115", "SIM118", "UP006", "UP007", "UP015", "UP032", "UP035", "UP038", "UP045"]
+"dataset_files/*.py" = ["I001"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+    "gpu: requires a GPU and local model weights; excluded from CPU CI",
+]

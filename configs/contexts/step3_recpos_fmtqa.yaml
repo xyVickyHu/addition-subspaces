@@ -1,0 +1,17 @@
+schema_version: 1
+model:
+  name: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  dtype: bfloat16
+task:
+  family: number_add
+  prompt_format: qa
+  n_shot: 5
+samples:
+  analysis:
+    path: log/cache/samples/3826c2d7080a69b9/scan.json
+activations:
+  path: log/cache/z/7339c2c48b56b087
+heads_artifact:
+  path: log/runs/fmtqa-avg3__35f035b1cbab/sig-largest_gap-v1/scan-100x20-6ba4e1/recpos-paired_bh-v1-bbd19e88/main_heads.json
+  semantic_fingerprint: eb1c154993e3ab7b1e690d3f66759d457ecdd47e4b296a7a42868c9c8f35f33e

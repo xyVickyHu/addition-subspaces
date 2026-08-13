@@ -1,0 +1,54 @@
+# AIE baseline cell — number_mul / Llama-3 (clone of
+# step1_number_mul_llama3_siggap_avg3.yaml; matrix section kept verbatim so
+# validation/resolution pass — the aie stage never reads the matrix).
+# k rationale: 37 = sig-matched (largest_gap@avg3 significant count);
+# 20 = paper-indicated (~2% of the 1024-head grid, Todd et al. footnote 1).
+# Validity overlay (Q7): held-out mul19/mul23 are dead tasks (clean <=0.08
+# historically) — reported per-task, not excluded.
+#   .venv/bin/python -m subspaces.runners.step1 make-samples --config <this>   # CPU
+#   sbatch -p YOUR_PARTITION scripts/step1_aie.sbatch <this>               # GPU
+schema_version: 1
+run_name: aie_mulllama
+protocol: corrected_holdout
+model:
+  name: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  dtype: bfloat16
+  device: cuda
+task:
+  dataset_dir: number_mul
+  prompt_format: arrow
+  n_shot: 5
+  task_split: configs/task_splits/number_mul_paper.yaml
+sites:
+  inject_layer: blocks.10.hook_resid_mid
+matrix:
+  mode: reuse
+  reuse_path: artifacts/matrix_mul_meta-llama-3-8b-instruct_lambda0.05
+  node_name: mulllama-avg3
+  checkpoint_select: {rule: mean_last_k, k: 3}
+samples:
+  activation: {examples_per_task: 100, seed: 42, task_set: train}
+  scan: {examples_per_task: 100, seed: 42, task_set: train}
+  heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
+  final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
+  aie_corrupted: {examples_per_task: 25, seed: 42, task_set: train}
+significant:
+  method: largest_gap
+scan:
+  c_min: 0
+  c_max: 20
+main_selector:
+  name: unified
+  version: 1
+  params: {beta: 0.25, floor: 0.12, clean_min: 0.25, minor_z: 3.5}
+aie:
+  methods: [cie_replace, zs_add_proxy]
+  corrupted_examples_per_task: 25
+  corrupted_seed: 42
+  corruption_tries: 20
+  k_values: [37, 20]
+  batch_size: 25
+  proxy_batch_size: 100
+compute:
+  wandb_mode: offline

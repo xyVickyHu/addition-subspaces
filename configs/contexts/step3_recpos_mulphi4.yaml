@@ -1,0 +1,17 @@
+schema_version: 1
+model:
+  name: microsoft/phi-4
+  revision: 932b33c0ec9ca189badeb22480721a8de9d0e006
+  dtype: bfloat16
+task:
+  family: number_mul
+  prompt_format: arrow
+  n_shot: 5
+samples:
+  analysis:
+    path: log/cache/samples/513cc288bd445503/scan.json
+activations:
+  path: log/cache/z/83eda19b12ffd554
+heads_artifact:
+  path: log/runs/mulphi4-avg3__e6cc38cbda7e/sig-largest_gap-v1/scan-100x20-52e52a/recpos-paired_bh-v1-32033449/main_heads.json
+  semantic_fingerprint: e0fbe58d4e0c25eee01ae6bc95db5c818f81d6cb6787f256df0d5c707fab7b68

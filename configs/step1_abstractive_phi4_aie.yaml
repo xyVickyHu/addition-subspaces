@@ -1,0 +1,50 @@
+# AIE baseline cell — phi-4 abstr family (Stage-3 M1-fam, 2026-08-07).
+# k rationale: 31 = sig-matched (largest_gap@avg3); 20 = paper-indicated.
+# AIE never reads the matrix. 80GB-node pin (14B OOMs at load on 40GB).
+#   .venv/bin/python -m subspaces.runners.step1 make-samples --config <this>   # CPU
+#   sbatch -p YOUR_PARTITION -w YOUR_80GB_NODE scripts/step1_aie.sbatch <this>    # GPU
+schema_version: 1
+run_name: aie_abstrphi4
+protocol: corrected_holdout
+model:
+  name: microsoft/phi-4
+  revision: 932b33c0ec9ca189badeb22480721a8de9d0e006
+  dtype: bfloat16
+  device: cuda
+task:
+  dataset_dir: abstractive
+  prompt_format: arrow
+  n_shot: 5
+  task_split: configs/task_splits/abstractive_paper.yaml
+sites:
+  inject_layer: blocks.12.hook_resid_mid
+matrix:
+  mode: reuse
+  reuse_path: artifacts/matrix_abstractive_phi-4_lambda0.05
+  node_name: abstrphi4-avg3
+  checkpoint_select: {rule: mean_last_k, k: 3}
+samples:
+  aie_corrupted: {examples_per_task: 25, seed: 42, task_set: train}
+  activation: {examples_per_task: 100, seed: 42, task_set: train}
+  scan: {examples_per_task: 100, seed: 42, task_set: train}
+  heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
+  final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
+significant:
+  method: largest_gap
+scan:
+  c_min: 0
+  c_max: 20
+main_selector:
+  name: unified
+  version: 1
+  params: {beta: 0.25, floor: 0.0, clean_min: 0.25, minor_z: 3.5}
+aie:
+  methods: [cie_replace, zs_add_proxy]
+  corrupted_examples_per_task: 25
+  corrupted_seed: 42
+  corruption_tries: 20
+  k_values: [31, 20]
+  batch_size: 25
+  proxy_batch_size: 100
+compute:
+  wandb_mode: offline

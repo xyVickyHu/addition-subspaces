@@ -1,0 +1,57 @@
+# SWEEP PILOT P-F1t: format axis, textlabel — TRAIN-ONLY leg (stage-2 F-cell).
+# Trains the qa-format matrix (per-format retraining = the historical
+# format-sweep design; the canonical arrow matrix refuses qa provenance).
+# The calib (P-F1c) and full (P-F1f) legs REUSE this run's matrix by path,
+# so the cell trains exactly once. Submit via:
+#   sbatch -p YOUR_PARTITION scripts/step1_train_only.sbatch \
+#     configs/step1_number_add_llama3_fmtqa_train.yaml
+# Historical anchors (legacy format sweep, qa): clean 0.43, elbow ~49
+# sig heads, weak20 main (15,2),(15,1) — the trio is expected to remain the
+# unified-v1 leader set; clean is EXPECTED to drop well below arrow's 0.87.
+schema_version: 1
+run_name: addllama_fmttextlabel_train
+protocol: corrected_holdout
+model:
+  name: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  dtype: bfloat16
+  device: cuda
+task:
+  dataset_dir: number_add
+  prompt_format: textlabel
+  n_shot: 5
+  task_split: configs/task_splits/number_add_paper.yaml
+sites:
+  inject_layer: blocks.10.hook_resid_mid
+matrix:
+  mode: train
+  node_name: fmt-textlabel
+  train:
+    lambda_l1: 0.05
+    epochs: 50
+    lr: 0.01
+    bs: 128
+    train_ratio: 0.8
+    zero_one_interval: true
+    seed: 42
+    test_gap: 5
+    n_example: 100
+    indist_limit: 2560
+    ood_limit: 512
+    anneal: 1
+samples:
+  activation: {examples_per_task: 100, seed: 42, task_set: train}
+  scan: {examples_per_task: 100, seed: 42, task_set: train}
+  heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
+  final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
+significant:
+  method: elbow
+scan:
+  c_min: 0
+  c_max: 20
+main_selector:
+  name: unified
+  version: 1
+  params: {beta: 0.25, floor: 0.12, clean_min: 0.25, minor_z: 3.5}
+compute:
+  wandb_mode: offline

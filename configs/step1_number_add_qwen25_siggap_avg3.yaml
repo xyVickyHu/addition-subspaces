@@ -1,0 +1,47 @@
+# QWEN 100/task FULL SCAN (2026-08-04, user directive: 100/t is the
+# reporting standard; the earlier 20/task leg is legacy and its config is
+# not shipped). Same retrained-matrix prefix as that 20/task leg
+# (matrix/sig/samples green; only the scan sample spec differs -> new
+# sibling scan node in run addqwen25-avg3__9272e1b4c12c). Volume:
+# 230x21x25x100 = 12.075M zero-shot evals; the 20/task leg measured ~5.2k
+# evals/min (GPU run, 7h46m) => est ~39 h; submit with --time=60:00:00.
+# main_selector carries the NEW default floor=0.0 (2026-08-04 flip;
+# selection provably identical to 0.12 whenever G* >= 0.12 — the 20/task
+# scan's G* was 0.346). etm v1 scorer caveat applies
+# (digit-split; raw_coef + corrected scorers are the informative composites).
+schema_version: 1
+run_name: addqwen25_siggap_avg3
+protocol: corrected_holdout
+model:
+  name: Qwen/Qwen2.5-7B
+  revision: d149729398750b98c0af14eb82c78cfe92750796
+  dtype: bfloat16
+  device: cuda
+task:
+  dataset_dir: number_add
+  prompt_format: arrow
+  n_shot: 5
+  task_split: configs/task_splits/number_add_paper.yaml
+sites:
+  inject_layer: blocks.10.hook_resid_mid
+matrix:
+  mode: reuse
+  reuse_path: log/runs/addqwen25__3ad76d8ffbda/matrix
+  node_name: addqwen25-avg3
+  checkpoint_select: {rule: mean_last_k, k: 3}
+samples:
+  activation: {examples_per_task: 100, seed: 42, task_set: train}
+  scan: {examples_per_task: 100, seed: 42, task_set: train}
+  heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
+  final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
+significant:
+  method: largest_gap
+scan:
+  c_min: 0
+  c_max: 20
+main_selector:
+  name: unified
+  version: 1
+  params: {beta: 0.25, floor: 0.0, clean_min: 0.25, minor_z: 3.5}
+compute:
+  wandb_mode: offline

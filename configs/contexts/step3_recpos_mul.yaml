@@ -1,0 +1,17 @@
+schema_version: 1
+model:
+  name: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  dtype: bfloat16
+task:
+  family: number_mul
+  prompt_format: arrow
+  n_shot: 5
+samples:
+  analysis:
+    path: log/cache/samples/513cc288bd445503/scan.json
+activations:
+  path: log/cache/z/e2f23cebe5b2e0b8
+heads_artifact:
+  path: log/runs/mulllama-avg3__34a02c596591/sig-largest_gap-v1/scan-100x20-3830c9/recpos-paired_bh-v1-e1b44d7c/main_heads.json
+  semantic_fingerprint: 17a352ea92bd7a292212dd5a8096b5ef5db378366afc3516cf8128826596c463

@@ -1,0 +1,47 @@
+# Fixed 21/5 task split for the abstractive (abstractive) family — COMMITTED,
+# never regenerated from a seed. Reused across models, prompt formats,
+# matrices, and reruns. Order matches the historical args.json exactly.
+#
+# Recovered 2026-07-22 from
+#   the legacy training run args.json ([0,1]_matrix_abstractive_meta-llama-3-8b-instruct_lambda0.05)
+# (verified identical across the llama/phi-4/qwen2.5 runs of this family).
+# Validity caveats: capitalize_second/last_letter and word_length (all
+#   held-out) fail the historical per-model validity floor for one or
+#   more models —
+#   only 3/5 (llama) held-out tasks are valid; one datapoint in
+#   present-past.json has an EMPTY output ('hint' -> '') which the
+#   legacy scorer auto-passes (scoring-contract proposal pending).
+schema_version: 1
+family: abstractive
+dataset_fingerprint: e016cc79f85c28c7be9548f3abc175a3081e68335b771c6143b08cba73caf278
+source: >-
+  args.json of [0,1]_matrix_abstractive_meta-llama-3-8b-instruct_lambda0.05
+  (indist_keys/ood_keys; identical across the three historical model runs)
+train_tasks:
+  - antonym
+  - capitalize
+  - landmark-country
+  - lowercase_last_letter
+  - next_item
+  - product-company
+  - national_parks
+  - lowercase_first_letter
+  - present-past
+  - synonym
+  - person-instrument
+  - prev_item
+  - next_capital_letter
+  - park-country
+  - sentiment
+  - english-french
+  - singular-plural
+  - country-currency
+  - country-capital
+  - person-sport
+  - english-spanish
+eval_tasks:
+  - person-occupation
+  - capitalize_second_letter
+  - capitalize_last_letter
+  - capitalize_first_letter
+  - word_length
