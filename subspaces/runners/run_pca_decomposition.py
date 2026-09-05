@@ -81,7 +81,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--heads-from-run",
         default=None,
-        help="Run slug under subspaces/runs/: read main_heads (fallback: significant heads from stage3_pca.json).",
+        help="Run slug under subspaces/runs/: read main_heads (fallback: selected heads from stage3_pca.json).",
     )
     p.add_argument(
         "--n-pcs", type=int, default=6, help="PCA subspace dimension (paper §4: 6)."
@@ -122,7 +122,7 @@ def _parse_heads(spec: str):
 
 
 def _heads_from_run(run_dir: Path):
-    """Return (heads, source). main_heads if present, else significant heads."""
+    """Return (heads, source). main_heads if present, else selected heads."""
     s2 = run_dir / "stage2_head_eval.json"
     if s2.exists():
         d = json.loads(s2.read_text())
@@ -138,7 +138,7 @@ def _heads_from_run(run_dir: Path):
             a, b = k.strip("()").split(",")
             heads.append((int(a), int(b)))
         if heads:
-            return heads, "significant_heads(fallback)"
+            return heads, "selected_heads(fallback)"
     return [], "none"
 
 

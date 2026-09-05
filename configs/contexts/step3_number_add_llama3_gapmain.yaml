@@ -7,8 +7,8 @@
 # NOTE: the heads artifact must exist — largest_gap main nodes ship only
 # main_heads.json, so compose first (CPU, immutable):
 #   .venv/bin/python -m subspaces.runners.step1 compose \
-#     --significant log/runs/add0204-avg3__bd1155ba9f53/sig-largest_gap-v1/significant_heads.json \
-#     --main log/runs/add0204-avg3__bd1155ba9f53/sig-largest_gap-v1/scan-100x20-0b02b3/main-largest_gap-v1-68ed2c46/main_heads.json
+#     --selected log/runs/add0204-avg3__bd1155ba9f53/selected-largest_gap-v1/selected_heads.json \
+#     --main log/runs/add0204-avg3__bd1155ba9f53/selected-largest_gap-v1/scan-100x20-0b02b3/main-largest_gap-v1-68ed2c46/main_heads.json
 schema_version: 1
 model:
   name: meta-llama/Meta-Llama-3-8B-Instruct
@@ -23,4 +23,4 @@ samples:
     path: log/cache/samples/7cce5d5770364ee6/scan.json
 activations:
   path: log/cache/z/62e03de461b76523
-heads_artifact: log/runs/add0204-avg3__bd1155ba9f53/sig-largest_gap-v1/scan-100x20-0b02b3/main-largest_gap-v1-68ed2c46/heads.json
+heads_artifact: log/runs/add0204-avg3__bd1155ba9f53/selected-largest_gap-v1/scan-100x20-0b02b3/main-largest_gap-v1-68ed2c46/heads.json

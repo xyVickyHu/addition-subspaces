@@ -8,14 +8,14 @@ project plan, Milestone LT):
       matrix_ref.json                      the node's identity record
       matrix/checkpoints/...               mode=train output (moved from staging)
       derived/checkpoints/...              checkpoint_select outputs
-      sig-<method>-v<V>[-<p6>]/            significant variants, siblings
-        significant_heads.json
+      selected-<method>-v<V>[-<p6>]/            selected variants, siblings
+        selected_heads.json
         scan-<E>x<C>-<h6>/                 scan protocol variants, siblings
           head_scan.json, scan_outcomes.npz
           main-<selector>-v<V>-<h8>/       main-selector variants, siblings
             main_heads.json, heads.json,
             eval-<h10>.json (+ -outcomes.npz)
-          recpos-<selector>-v<V>-<h8>/     recovery-positive selections (the
+          significant-<selector>-v<V>-<h8>/     significant selections (the
                                            outcome-consuming paired family;
                                            adopted default: paired_bh q=0.05)
                                            — same artifact contract as main-*
@@ -39,9 +39,9 @@ import re
 from pathlib import Path
 
 from subspaces.artifacts import ArtifactError, semantic_fingerprint
-from subspaces.config import SignificantConfig, Step1Config
+from subspaces.config import SelectedConfig, Step1Config
 from subspaces.paths import ProjectPaths
-from subspaces.step1.significant import METHOD_PARAM_SCHEMAS
+from subspaces.step1.selected import METHOD_PARAM_SCHEMAS
 
 _SANITIZE_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -98,59 +98,59 @@ def matrix_node_dir(paths: ProjectPaths, cfg: Step1Config, matrix_ref: dict) -> 
     return paths.runs_dir / f"{node_name(cfg)}__{key}"
 
 
-def sig_dirname(sig_cfg: SignificantConfig) -> str:
-    """Sig-node dirname: method-v<V> plus a param hash for parameterized
+def selected_dirname(selected_cfg: SelectedConfig) -> str:
+    """Selected-node dirname: method-v<V> plus a param hash for parameterized
     methods. The param key set derives from the registry schema, so a future
-    parameter FIELD on SignificantConfig can never leak into other methods'
+    parameter FIELD on SelectedConfig can never leak into other methods'
     dirnames."""
-    key = (sig_cfg.method, sig_cfg.method_version)
+    key = (selected_cfg.method, selected_cfg.method_version)
     schema = METHOD_PARAM_SCHEMAS.get(key)
     if schema is None:
-        raise ArtifactError(f"unknown significant method {key!r}; not in registry")
-    name = f"sig-{sig_cfg.method}-v{sig_cfg.method_version}"
+        raise ArtifactError(f"unknown selected-set method {key!r}; not in registry")
+    name = f"selected-{selected_cfg.method}-v{selected_cfg.method_version}"
     params = {
-        param: getattr(sig_cfg, param)
+        param: getattr(selected_cfg, param)
         for param in sorted(schema)
-        if getattr(sig_cfg, param) is not None
+        if getattr(selected_cfg, param) is not None
     }
     if params:
         name += f"-{semantic_fingerprint(params)[:6]}"
     return name
 
 
-def sig_dirname_from_manifest(significant: dict) -> str:
-    """Sig-node dirname for an EXTERNAL significant artifact (adoption path):
+def selected_dirname_from_manifest(selected: dict) -> str:
+    """Selected-node dirname for an EXTERNAL selected artifact (adoption path):
     reconstructed from the artifact's own recorded config. The recorded
     identity slice carries only the active method's registered parameters —
     absent parameters reconstruct as None (their dataclass default)."""
-    recorded = (significant.get("config") or {}).get("significant") or {}
+    recorded = (selected.get("config") or {}).get("selected") or {}
     method = recorded.get("method", "elbow")
     method_version = recorded.get("method_version", 1)
     schema = METHOD_PARAM_SCHEMAS.get((method, method_version))
     if schema is None:
         raise ArtifactError(
-            f"unknown significant method ({method!r}, {method_version}) "
+            f"unknown selected-set method ({method!r}, {method_version}) "
             "recorded in the supplied artifact; not in this code's registry"
         )
-    sig_cfg = SignificantConfig(
+    selected_cfg = SelectedConfig(
         method=method,
         method_version=method_version,
         **{param: recorded.get(param) for param in schema},
     )
-    return sig_dirname(sig_cfg)
+    return selected_dirname(selected_cfg)
 
 
-def sig_node_dir(matrix_node: Path, sig_cfg: SignificantConfig) -> Path:
-    return matrix_node / sig_dirname(sig_cfg)
+def selected_node_dir(matrix_node: Path, selected_cfg: SelectedConfig) -> Path:
+    return matrix_node / selected_dirname(selected_cfg)
 
 
-def scan_node_dir(sig_node: Path, cfg: Step1Config, scan_expected: dict) -> Path:
-    """Scan protocol variants are siblings under their significant node —
+def scan_node_dir(selected_node: Path, cfg: Step1Config, scan_expected: dict) -> Path:
+    """Scan protocol variants are siblings under their selected node —
     the scan level is NOT a grouping folder: two scans of the same head set
     legitimately differ (examples/task, scoring, c-grid, batch), and a main
     selection derives from ONE scan's curves."""
     tag = f"{cfg.samples.scan.examples_per_task}x{cfg.scan.c_max}"
-    return sig_node / f"scan-{tag}-{semantic_fingerprint(scan_expected)[:6]}"
+    return selected_node / f"scan-{tag}-{semantic_fingerprint(scan_expected)[:6]}"
 
 
 def main_dirname(
@@ -161,7 +161,7 @@ def main_dirname(
 ) -> str:
     """Selection-node dirname. The dir prefix is the selector's ROLE
     (adopted 2026-08-04): outcome-consuming selectors (the paired McNemar
-    family) select "recovery-positive" heads and get ``recpos-``; curve-level
+    family) select "significant" heads and get ``significant-``; curve-level
     selectors keep ``main-``. The prefix is presentation only — the identity
     hash is prefix-independent, so the role split forks no artifact identity
     (pre-adoption paired nodes were renamed on disk, not recomputed)."""
@@ -175,7 +175,9 @@ def main_dirname(
         }
     )[:8]
     role = (
-        "recpos" if (selector_name, selector_version) in OUTCOME_SELECTORS else "main"
+        "significant"
+        if (selector_name, selector_version) in OUTCOME_SELECTORS
+        else "main"
     )
     return f"{role}-{selector_name}-v{selector_version}-{identity}"
 

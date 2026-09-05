@@ -13,7 +13,7 @@ requires, and carries no identity of its own. Review, commit (e.g. under
 ``configs/contexts/``), then::
 
     .venv/bin/python scripts/make_step3_context.py \\
-        --heads-artifact log/runs/<node>/sig-*/scan-*/recpos-paired_bh-v1-<h8>/main_heads.json \\
+        --heads-artifact log/runs/<node>/selected-*/scan-*/significant-paired_bh-v1-<h8>/main_heads.json \\
         --out configs/contexts/step3_<cell>.yaml
     sbatch -p YOUR_PARTITION scripts/step3_run.sbatch configs/contexts/step3_<cell>.yaml
 """

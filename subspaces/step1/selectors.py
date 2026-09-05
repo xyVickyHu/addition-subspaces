@@ -21,8 +21,8 @@ selector_expected_repro_v1.json``):
 - ``pin`` v1 — explicit head list (paper-exact pinning).
 
 ``largest_gap`` v1 is NOT a port (added 2026-07-24): the parameter-free
-peak-accuracy analogue of the significant-side ``largest_gap`` method
-(``subspaces.step1.significant.largest_gap_threshold``), introduced as a comparison
+peak-accuracy analogue of the selected-side ``largest_gap`` method
+(``subspaces.step1.selected.largest_gap_threshold``), introduced as a comparison
 method against ``unified`` v1.
 
 ``above_ablation`` v1 / ``above_ablation_zero`` v1 are NOT ports (added
@@ -34,7 +34,7 @@ variant derives the region from the corrupted accuracy itself — the
 Binomial(n_eval, pooled_c0) draws, where pooled_c0 is the mean of the
 per-head c=0 accuracies. NOTE the c=0 semantics (subspaces.step1.recovery): each
 head's c=0 point is a per-head LEAVE-ONE-OUT condition (that head zeroed,
-all other significant heads at their means), evaluated deterministically on
+all other selected heads at their means), evaluated deterministically on
 shared examples — the per-head c0 values differ systematically (by
 -mean_z[l,h]), not stochastically, and on the canonical addition scan their
 cross-head spread is SMALLER than the binomial SE (the spread is
@@ -102,7 +102,7 @@ vectors, refusing on any misalignment.
 
 Head-scan manifest fields consumed: ``curves`` ({"L:H": {c: acc}} — key order
 preserves the scan's head order, which carries the legacy tie-break
-semantics), ``baselines.clean_acc``, ``baselines.full_significant_acc``,
+semantics), ``baselines.clean_acc``, ``baselines.full_selected_acc``,
 ``n_eval_examples_per_head_per_c``; the paired family additionally consumes
 ``outcomes.content_sha256`` (quoted into its verdict) and the outcome
 vectors themselves.
@@ -231,7 +231,7 @@ def unified_v1(scan: dict, params: dict) -> SelectorResult:
 
     A scan has main heads iff the model performs the task (clean_acc >=
     clean_min) and some single head materially recovers it (best peak gain >=
-    floor); then a significant head is MAIN iff its peak recovery gain is at
+    floor); then a selected head is MAIN iff its peak recovery gain is at
     least beta of the scan's best gain, ordered by gain descending. Heads real
     beyond noise (z >= minor_z) but below the main bar are MINOR.
     """
@@ -324,7 +324,7 @@ def unified_v1(scan: dict, params: dict) -> SelectorResult:
         "verdict": verdict_label,
         "none_reason": none_reason,
         "n_selected": len(main_heads),
-        "n_sig": len(stats),
+        "n_scanned": len(stats),
         "leader": list(leader) if leader else None,
         "leader_gain": float(g_best),
         "leader_near_floor": bool(g_best < 1.5 * floor),
@@ -354,14 +354,14 @@ def recovery_weak_v1(scan: dict, params: dict) -> SelectorResult:
 
     Main iff: (1) the peak comes from scaling up (c* > 0); (2) no drop greater
     than eps on the way to the peak; (3) gain >= max(abs_floor, rel_floor *
-    headroom) where headroom = A_sig - acc0. Ordered by peak accuracy, then
+    headroom) where headroom = A_selected - acc0. Ordered by peak accuracy, then
     gain, then layer/head. All parameters are explicit (the legacy code had
     two shadowed definitions differing only in defaults).
     """
     rel_floor = float(params["rel_floor"])
     abs_floor = float(params["abs_floor"])
     eps = float(params["eps"])
-    a_sig = float(scan["baselines"]["full_significant_acc"])
+    a_selected = float(scan["baselines"]["full_selected_acc"])
 
     curves = _parse_curves(scan)
     main_heads: list[Head] = []
@@ -371,7 +371,7 @@ def recovery_weak_v1(scan: dict, params: dict) -> SelectorResult:
         seg = s["accs"][: s["i_star"] + 1]
         max_drop = max((seg[i] - seg[i + 1] for i in range(len(seg) - 1)), default=0.0)
         steady = max_drop <= eps
-        headroom = a_sig - s["acc_at_c0"]
+        headroom = a_selected - s["acc_at_c0"]
         bar = max(abs_floor, rel_floor * headroom) if headroom > 0 else abs_floor
         rel = (s["gain"] / headroom) if abs(headroom) > 1e-9 else float("nan")
         is_main = bool(s["c_star"] != 0 and steady and s["gain"] >= bar)
@@ -390,7 +390,7 @@ def recovery_weak_v1(scan: dict, params: dict) -> SelectorResult:
             "acc_at_c0": s["acc_at_c0"],
             "gain": float(s["gain"]),
             "rel_recovery": float(rel) if rel == rel else None,  # NaN -> None
-            "headroom_vs_sumSig": float(headroom),
+            "headroom_vs_sumSelected": float(headroom),
             "bar": float(bar),
             "max_drop_to_peak": float(max_drop),
             "steady": bool(steady),
@@ -429,9 +429,7 @@ def pin_v1(scan: dict, params: dict) -> SelectorResult:
     scanned = set(_parse_curves(scan))
     missing = [p for p in pinned if p not in scanned]
     if missing:
-        raise SelectorError(
-            f"pinned head(s) not in the scan's significant set: {missing}"
-        )
+        raise SelectorError(f"pinned head(s) not in the scan's selected set: {missing}")
     decisions = {
         f"{layer_idx}:{head_idx}": {"is_main": True, "main_reason": "pinned"}
         for layer_idx, head_idx in pinned
@@ -450,9 +448,9 @@ def pin_v1(scan: dict, params: dict) -> SelectorResult:
 def largest_gap_v1(scan: dict, params: dict) -> SelectorResult:
     """Cut the descending peak-accuracy curve at its largest consecutive drop.
 
-    Parameter-free analogue of the significant-side ``largest_gap`` method
-    (``subspaces.step1.significant.largest_gap_threshold``), applied to each
-    significant head's peak recovery accuracy ``acc_at_c_star`` (max over the
+    Parameter-free analogue of the selected-side ``largest_gap`` method
+    (``subspaces.step1.selected.largest_gap_threshold``), applied to each
+    selected head's peak recovery accuracy ``acc_at_c_star`` (max over the
     scanned coefficient grid, c=0 included) instead of the |coefficient|
     curve. Peaks are sorted descending; the cut is the largest drop between
     consecutive values; on an exact tie between drops the highest cut (fewest
@@ -545,7 +543,7 @@ def largest_gap_v1(scan: dict, params: dict) -> SelectorResult:
     verdict = {
         "verdict": "localized" if len(main_heads) <= 5 else "distributed",
         "n_selected": len(main_heads),
-        "n_sig": len(stats),
+        "n_scanned": len(stats),
         "threshold": float(threshold),
         "gap": gap,
         "order": "acc_at_c_star desc",
@@ -675,7 +673,7 @@ def above_ablation_zero_v1(scan: dict, params: dict) -> SelectorResult:
     verdict = {
         "verdict": verdict_label,
         "n_selected": len(main_heads),
-        "n_sig": len(stats),
+        "n_scanned": len(stats),
         "noise": {"band": "zero"},
         "order": "gain desc",
     }
@@ -706,7 +704,7 @@ def above_ablation_v1(scan: dict, params: dict) -> SelectorResult:
     (1-alpha) null quantile of that max: threshold =
     BinomialQuantile(n_eval, pooled_c0, (1-alpha)^(1/m)) / n_eval with m =
     the head's non-zero grid size (``scanwise=0.0``, per-head test at level
-    alpha; expected false selections <= alpha * n_sig) or m = the total
+    alpha; expected false selections <= alpha * n_selected_set) or m = the total
     non-zero points across all scanned heads (``scanwise=1.0``, family-wise
     level alpha across the scan). Points share evaluation examples across
     c, so against the flat-curve null the iid/Sidak assumptions
@@ -790,7 +788,7 @@ def above_ablation_v1(scan: dict, params: dict) -> SelectorResult:
     verdict = {
         "verdict": verdict_label,
         "n_selected": len(main_heads),
-        "n_sig": len(stats),
+        "n_scanned": len(stats),
         "noise": {
             "band": "corrupted_binomial_max_q",
             "alpha": alpha,
@@ -839,7 +837,7 @@ def compare_zero_v1(scan: dict, params: dict) -> SelectorResult:
     ``mean_fv_acc`` plateau) a flat-null head clears the bar at some grid
     point almost surely, so this variant is expected to over-select there,
     like ``above_ablation_zero`` (within 2-3 heads of it on the add scans,
-    vs ~half the significant set for the banded ``above_ablation``); on
+    vs ~half the selected set for the banded ``above_ablation``); on
     high-spread scans (extractive ~2.4 SE, abstractive ~15 SE) the envelope
     does real work and the selection approaches the banded one.
     ``verdict.noise.n_c0_pooled`` counts the c0 values enveloped (field
@@ -893,7 +891,7 @@ def compare_zero_v1(scan: dict, params: dict) -> SelectorResult:
     verdict = {
         "verdict": verdict_label,
         "n_selected": len(main_heads),
-        "n_sig": len(stats),
+        "n_scanned": len(stats),
         "noise": {
             "band": "max_c0",
             "threshold": float(max_c0),
@@ -1202,7 +1200,7 @@ def _paired_family(scan: dict, params: dict, outcomes, *, name: str) -> Selector
     verdict = {
         "verdict": verdict_label,
         "n_selected": len(main_heads),
-        "n_sig": n_heads,
+        "n_scanned": n_heads,
         "test": test_block,
         "outcomes_check": checks,
         "order": "p_adjusted asc",

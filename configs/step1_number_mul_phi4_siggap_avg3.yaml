@@ -3,12 +3,12 @@
 # non-add cells under the adopted protocol; qwen non-add descoped).
 # PORTED historical matrix (verified EXACT, train∩eval
 # = ∅; artifacts/PORTED_MATRICES.md); committed split recovered verbatim
-# from the historical args.json. Adopted defaults: largest_gap@avg3 sig +
+# from the historical args.json. Adopted defaults: largest_gap@avg3 selected +
 # unified-v1 floor-0 main. The June 2026 legacy-run numbers for this cell
 # are LEGACY-PROTOCOL (elbow@final + recovery_weak, pooled train+heldout
 # 20/t unseeded) and are not comparable.
 # 80GB-node pin: phi-4 (14B) OOMs at model load on 40GB A100s.
-#   .venv/bin/python -m subspaces.runners.step1 select-significant --config <this>
+#   .venv/bin/python -m subspaces.runners.step1 extract-selected --config <this>
 #   .venv/bin/python -m subspaces.runners.step1 make-samples      --config <this>
 #   sbatch -p YOUR_PARTITION -w YOUR_80GB_NODE --time=24:00:00 \
 #     scripts/step1_run.sbatch <this>
@@ -37,7 +37,7 @@ samples:
   scan: {examples_per_task: 100, seed: 42, task_set: train}
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
-significant:
+selected:
   method: largest_gap
 scan:
   c_min: 0

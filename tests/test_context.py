@@ -66,7 +66,7 @@ def _heads_artifact(fake_repo, tmp_path):
         schema_version=1,
         paths=ProjectPaths.from_root(fake_repo),
         payload={
-            "significant_heads": [[15, 2], [13, 6]],
+            "selected_heads": [[15, 2], [13, 6]],
             "main_heads": [[15, 2]],
             "minor_heads": [],
             "model_dims": {"n_layers": 32, "n_heads": 32},

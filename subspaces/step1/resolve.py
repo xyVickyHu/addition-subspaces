@@ -4,7 +4,7 @@ The run ID is computed from NORMALIZED REQUESTED SEMANTICS plus STABLE
 RESOLVED CONTENT IDs, before the run directory is created:
 
 - included: protocol, task family/prompt format/n_shot, sample specs and
-  seeds, scan grid, significant/selector schemas and parameters, sites, model
+  seeds, scan grid, selected/selector schemas and parameters, sites, model
   name + dtype + EFFECTIVE revision (config pin, else cache-resolved),
   selected-checkpoint SHA + epoch, dataset and split fingerprints, and the
   substep algorithm versions;
@@ -38,8 +38,8 @@ import yaml
 
 from subspaces.artifacts import (
     ArtifactError,
-    content_hash,
     dataset_fingerprint,
+    identity_content_hash,
     sha256_file,
 )
 from subspaces.config import ConfigError, Step1Config, requested_semantics, to_dict
@@ -62,7 +62,7 @@ def algorithm_versions() -> dict[str, int]:
         matrix,
         recovery,
         samples,
-        significant,
+        selected,
         zcache,
     )
 
@@ -71,7 +71,7 @@ def algorithm_versions() -> dict[str, int]:
         for module in (
             matrix,
             samples,
-            significant,
+            selected,
             recovery,
             headset_eval,
             eval_gpu,
@@ -224,7 +224,7 @@ def resolve_runtime(
 
 
 def identity_hash(resolved: dict) -> str:
-    return content_hash(resolved["identity"])[:12]
+    return identity_content_hash(resolved["identity"])[:12]
 
 
 def run_id_for(cfg: Step1Config, resolved: dict) -> str:
@@ -250,8 +250,8 @@ def write_resolved_config(cfg: Step1Config, resolved: dict, run_dir: Path) -> No
     if resolved_path.exists():
         existing = yaml.safe_load(resolved_path.read_text(encoding="utf-8"))
         existing_resolved = existing.get("resolved", {})
-        old_hash = content_hash(existing_resolved.get("identity", {}))
-        new_hash = content_hash(resolved["identity"])
+        old_hash = identity_content_hash(existing_resolved.get("identity", {}))
+        new_hash = identity_content_hash(resolved["identity"])
         if old_hash != new_hash:
             raise ArtifactError(
                 f"{resolved_path}: resolved run identity changed since this "

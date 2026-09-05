@@ -16,5 +16,5 @@ activations:
   heldout:
     path: log/cache/z/5dfee68f1b54ee2b
 heads_artifact:
-  path: log/runs/_legacy/add0204-avg3__bd1155ba9f53/sig-largest_gap-v1/scan-100x20-0b02b3/main-largest_gap-v1-68ed2c46/main_heads.json
+  path: log/runs/_legacy/add0204-avg3__bd1155ba9f53/selected-largest_gap-v1/scan-100x20-0b02b3/main-largest_gap-v1-68ed2c46/main_heads.json
   semantic_fingerprint: 50cd21b0ec4e312e9a656f16ab8e92fe84573a99ca41ef54472851bc8253c53c

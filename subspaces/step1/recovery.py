@@ -2,7 +2,7 @@
 
 Inputs (explicit, all fingerprint-validated by the pipeline stage):
 
-- the ``significant_heads`` artifact (which heads to scan; optionally capped
+- the ``selected_heads`` artifact (which heads to scan; optionally capped
   by ``scan.head_limit`` — recorded in the artifact);
 - the SCAN sample manifest (train tasks only under the corrected protocol);
 - the SELECTION activation cache (train-task task-conditioned z; the
@@ -14,8 +14,8 @@ Per head ``(l, h)`` and integer ``c`` in the grid, for each task ``t`` (legacy
     FV(c, h, t) = c * z[t][l, h] + (mean_fv - mean_z[l, h])
 
 i.e. the scaled head keeps its task-conditioned value while every other
-significant head sits at its cross-task mean. Baselines on the SAME prompts:
-clean (no intervention), full-significant unit-coefficient FV, and the global
+selected head sits at its cross-task mean. Baselines on the SAME prompts:
+clean (no intervention), full-selected unit-coefficient FV, and the global
 mean-FV. Every listed example is evaluated (no drops); effective batch sizes
 are recorded.
 
@@ -24,7 +24,7 @@ Artifacts:
 - ``step1/head_scan.json`` (kind ``head_scan``): curves, baselines, actual
   per-task denominators, c grid, references;
 - ``step1/scan_outcomes.npz``: paired per-example 0/1 outcomes per (head, c)
-  plus clean and full-significant vectors — internal (referenced by
+  plus clean and full-selected vectors — internal (referenced by
   ``head_scan.json``), never exposed through the heads artifact.
 """
 
@@ -44,26 +44,34 @@ OUTCOMES_FILE = "scan_outcomes.npz"
 
 def outcomes_content_sha(outcomes: dict) -> str:
     """Deterministic digest of the outcome ARRAYS (npz bytes embed zip
-    timestamps and are not reproducible)."""
+    timestamps and are not reproducible).
+
+    Array names enter the digest in their LEGACY head-set spelling
+    (``full_selected`` hashes as ``full_sig``): the digest is recorded in
+    fingerprinted manifests, so a scan or evaluation regenerated under the
+    paper vocabulary must reproduce the digest of its pre-rename twin. Files
+    on disk keep whichever spelling they were written with (readers use
+    ``artifacts.legacy_spellings``)."""
     import hashlib
 
+    from subspaces.artifacts import LEGACY_KEY_SPELLING
+
     digest = hashlib.sha256()
-    for key in sorted(outcomes):
-        digest.update(key.encode())
+    for key in sorted(outcomes, key=lambda k: LEGACY_KEY_SPELLING.get(k, k)):
+        digest.update(LEGACY_KEY_SPELLING.get(key, key).encode())
         digest.update(bytes(bytearray(outcomes[key])))
     return digest.hexdigest()
 
 
-def scanned_heads(significant: dict, head_limit: int | None) -> list[tuple[int, int]]:
+def scanned_heads(selected: dict, head_limit: int | None) -> list[tuple[int, int]]:
     heads = [
-        (int(layer_idx), int(head_idx))
-        for layer_idx, head_idx, *_ in significant["heads"]
+        (int(layer_idx), int(head_idx)) for layer_idx, head_idx, *_ in selected["heads"]
     ]
     return heads[:head_limit] if head_limit else heads
 
 
 def run_scan(
-    significant: dict,
+    selected: dict,
     scan_samples: dict,
     activation_cache: dict,
     cfg: Step1Config,
@@ -100,18 +108,17 @@ def run_scan(
     if missing:
         raise ArtifactError(f"activation cache lacks task z for: {missing}")
 
-    sig_heads = [
-        (int(layer_idx), int(head_idx))
-        for layer_idx, head_idx, *_ in significant["heads"]
+    selected_heads = [
+        (int(layer_idx), int(head_idx)) for layer_idx, head_idx, *_ in selected["heads"]
     ]
-    heads = scanned_heads(significant, cfg.scan.head_limit)
+    heads = scanned_heads(selected, cfg.scan.head_limit)
     c_grid = list(range(cfg.scan.c_min, cfg.scan.c_max + 1))
     layer_name = cfg.sites.inject_layer
     batch_size = effective_batch_size(cfg)
 
     model = model_loader()
     mean_z = mean_z_over_tasks({task: z_results[task] for task in task_order})
-    mean_fv = sum(mean_z[layer_idx, head_idx] for layer_idx, head_idx in sig_heads)
+    mean_fv = sum(mean_z[layer_idx, head_idx] for layer_idx, head_idx in selected_heads)
 
     # Legacy paradigm: clean accuracy on the N-SHOT prompts; every FV
     # intervention on the ZERO-SHOT prompts of the SAME examples (paired).
@@ -146,9 +153,10 @@ def run_scan(
         return collected
 
     outcomes["clean"] = eval_over_tasks(lambda task: None)
-    outcomes["full_sig"] = eval_over_tasks(
+    outcomes["full_selected"] = eval_over_tasks(
         lambda task: sum(
-            z_results[task][layer_idx, head_idx] for layer_idx, head_idx in sig_heads
+            z_results[task][layer_idx, head_idx]
+            for layer_idx, head_idx in selected_heads
         )
     )
     outcomes["mean_fv"] = eval_over_tasks(lambda task: mean_fv)
@@ -176,7 +184,7 @@ def run_scan(
 
     baselines = {
         "clean_acc": float(np.mean(outcomes["clean"])),
-        "full_significant_acc": float(np.mean(outcomes["full_sig"])),
+        "full_selected_acc": float(np.mean(outcomes["full_selected"])),
         "mean_fv_acc": float(np.mean(outcomes["mean_fv"])),
     }
     # macro (mean of per-task means) alongside the pooled micro baselines;
@@ -191,7 +199,7 @@ def run_scan(
         )
         for key, src in (
             ("clean_acc", "clean"),
-            ("full_significant_acc", "full_sig"),
+            ("full_selected_acc", "full_selected"),
             ("mean_fv_acc", "mean_fv"),
         )
     }
@@ -216,7 +224,7 @@ def run_scan(
             "c_grid": c_grid,
             "scanned_heads": [list(head) for head in heads],
             "head_limit_applied": cfg.scan.head_limit,
-            "n_sig_heads": len(sig_heads),
+            "n_selected_heads": len(selected_heads),
             "n_eval_examples_per_head_per_c": n_eval_total,
             "counts_per_task": counts,
             "task_order": task_order,

@@ -2,10 +2,10 @@
 # final ep49 sha 6fb19756831b…).
 # Split discipline: the committed abstractive_paper.yaml split's TRAIN
 # tasks were used to train this (ported) matrix and are the only tasks seen
-# by significance/scan/selection; the 5 held-out tasks produce every
+# by selected-set extraction/scan/selection; the 5 held-out tasks produce every
 # reported accuracy (100/task, materialized only by evaluate-headset).
 # FULL leg (headline per Q8): scan 100/task; calib PASSED 2026-07-27 (job
-# 57m: 23 gap sig heads; unified verdict DISTRIBUTED — 11 main
+# 57m: 23 gap selected heads; unified verdict DISTRIBUTED — 11 main
 # heads led by (15,1) .540; held-out clean 0.422 with the documented
 # validity-failed capitalize_*/word_length tasks).
 # Validity overlay (Q7): present-past.json[110] has an EMPTY target
@@ -36,7 +36,7 @@ samples:
   scan: {examples_per_task: 100, seed: 42, task_set: train}
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
-significant:
+selected:
   method: largest_gap
 scan:
   c_min: 0

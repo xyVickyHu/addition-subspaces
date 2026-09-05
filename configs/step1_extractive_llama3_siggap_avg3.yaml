@@ -3,10 +3,10 @@
 # so raw_coef uses ep32 and mean-last-3 averages eps 30-32).
 # Split discipline: the committed extractive_paper.yaml split's TRAIN
 # tasks were used to train this (ported) matrix and are the only tasks seen
-# by significance/scan/selection; the 5 held-out tasks produce every
+# by selected-set extraction/scan/selection; the 5 held-out tasks produce every
 # reported accuracy (100/task, materialized only by evaluate-headset).
 # FULL leg (headline per Q8): scan 100/task; calib PASSED 2026-07-27 (job
-# 57m: 15 gap sig heads; unified verdict DISTRIBUTED — 11 main
+# 57m: 15 gap selected heads; unified verdict DISTRIBUTED — 11 main
 # heads led by (15,1) .557; held-out clean 0.810 / raw 0.510; mean_fv
 # floor 0.29 = choice-task chance, not ~0.03).
 schema_version: 1
@@ -34,7 +34,7 @@ samples:
   scan: {examples_per_task: 100, seed: 42, task_set: train}
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
-significant:
+selected:
   method: largest_gap
 scan:
   c_min: 0

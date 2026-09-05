@@ -755,7 +755,7 @@ def run_token_groups(
         if heads_kind == "heads":
             selector = heads_manifest.get("selector")
         else:
-            # selector output (kind main_heads, e.g. a recpos node): the
+            # selector output (kind main_heads, e.g. a significant node): the
             # selector fields live at the manifest top level
             selector = {
                 "name": heads_manifest.get("selector_name"),

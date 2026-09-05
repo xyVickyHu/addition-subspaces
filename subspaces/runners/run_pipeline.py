@@ -3,9 +3,9 @@
 Stages:
     1. Matrix training (skipped if a matching matrix dir is on disk).
     2. Auto threshold + main-head selection, three FV-variant accuracy
-       evaluations (full significant FV, per-head scaled-with-mean-ablation,
+       evaluations (full selected FV, per-head scaled-with-mean-ablation,
        main+mean-ablation).
-    3. PCA decomposition per significant head + paper §4 period/magnitude
+    3. PCA decomposition per selected head + paper §4 period/magnitude
        basis fits on the main heads; cumulative-variance plots are saved.
     4. Paper §5 — per-demo extracted-signal analysis on the main heads:
        §5.1/5.2 label-token peaking + signal alignment and the label-token
@@ -85,7 +85,7 @@ def parse_args():
             "How to pick main heads. 'recovery' (default, data-driven, no fixed k) "
             "runs a dose-response scan over c={0..C_max} and selects heads whose "
             "curve rises steadily from the c=0 leave-one-out baseline by at least "
-            "the adaptive gain bar max(--weak-abs-floor, --weak-rel-floor·(A_sig−acc0)) "
+            "the adaptive gain bar max(--weak-abs-floor, --weak-rel-floor·(A_selected−acc0)) "
             "(see select_main_heads_by_recovery_weak). 'accuracy' is the legacy "
             "paper-repro path (top-k by head_acc_dict.pth, needs run_head_eval first). "
             "'coef' is top-k by |coef|."
@@ -103,15 +103,15 @@ def parse_args():
         type=float,
         default=0.2,
         help="Recovery (weak) selector: a head's gain acc(c*)−acc(c=0) must "
-        "recover ≥ this fraction of the significant-set headroom "
-        "(A_sig − acc(c=0)). Default 0.2.",
+        "recover ≥ this fraction of the selected-set headroom "
+        "(A_selected − acc(c=0)). Default 0.2.",
     )
     p.add_argument(
         "--weak-abs-floor",
         type=float,
         default=0.01,
         help="Recovery (weak) selector: absolute floor on gain acc(c*)−acc(c=0); "
-        "guards low-A_sig tasks where rel_floor·headroom ≈ 0. Default 0.01.",
+        "guards low-A_selected tasks where rel_floor·headroom ≈ 0. Default 0.01.",
     )
     p.add_argument(
         "--weak-eps",
@@ -288,20 +288,20 @@ def stage2_head_selection_and_eval(
 
     Phases:
         (clean) clean greedy-decode baseline (ceiling reference; never subtracted).
-        (a) FV = Σ z[l,h] over all significant heads (unit coefs; `sum_33` config).
-        (a') Raw trained-coefficient FV = Σ_{h ∈ sig} M[l,h]·z[l,h] (the trained
+        (a) FV = Σ z[l,h] over all selected heads (unit coefs; `sum_33` config).
+        (a') Raw trained-coefficient FV = Σ_{h ∈ selected} M[l,h]·z[l,h] (the trained
             matrix entries used as coefficients; cf. (a) which uses unit coefs on
             the same head set). Recorded as `raw_coef_fv_acc`.
-        (b) Recovery scan: per significant head ``(l, h)`` sweep ``c ∈ {0..C_max}``
-            with ``FV(c,h,t) = c·z[l,h]_task + Σ_{h'≠h ∈ sig} mean_z[h']`` — the
+        (b) Recovery scan: per selected head ``(l, h)`` sweep ``c ∈ {0..C_max}``
+            with ``FV(c,h,t) = c·z[l,h]_task + Σ_{h'≠h ∈ selected} mean_z[h']`` — the
             *scaled head keeps its task-conditioned per-task value*, others are
             mean-ablated. ``c=0`` is leave-one-out. Decision rule for main heads
             (weak selector): ``c* > 0`` AND the curve rises steadily to its peak
             (no single-step dip > --weak-eps on [0..c*]) AND
-            ``gain = acc(c*) − acc(c=0) ≥ max(--weak-abs-floor, --weak-rel-floor·(A_sig − acc(c=0)))``,
-            where ``A_sig`` is the full-significant-FV accuracy.
+            ``gain = acc(c*) − acc(c=0) ≥ max(--weak-abs-floor, --weak-rel-floor·(A_selected − acc(c=0)))``,
+            where ``A_selected`` is the full-selected-FV accuracy.
             See ``subspaces.utils.heads.select_main_heads_by_recovery_weak``.
-        (c) Main + mean-ablation: ``FV = Σ_{h ∈ main} z[l,h] + Σ_{h ∈ sig ∖ main} mean_z[h]``.
+        (c) Main + mean-ablation: ``FV = Σ_{h ∈ main} z[l,h] + Σ_{h ∈ selected ∖ main} mean_z[h]``.
     """
     from subspaces.utils.intervene import compute_task_accuracy
 
@@ -309,10 +309,10 @@ def stage2_head_selection_and_eval(
     threshold = auto_threshold(
         matrix, method=args.auto_threshold, fixed=args.fixed_threshold
     )
-    significant = select_heads(matrix, threshold)
+    selected = select_heads(matrix, threshold)
 
     print(
-        f"[stage 2] threshold={threshold:.4f} (method={args.auto_threshold}); |significant|={len(significant)}"
+        f"[stage 2] threshold={threshold:.4f} (method={args.auto_threshold}); |selected|={len(selected)}"
     )
 
     tasks = load_task_data(str(PROJECT_ROOT / "dataset_files" / args.task_dir))
@@ -358,12 +358,12 @@ def stage2_head_selection_and_eval(
     clean_acc = float(sum(accs_clean) / len(accs_clean))
     print(f"[stage 2-clean] mean clean accuracy = {clean_acc:.4f}")
 
-    # ---- (a) Full-significant FV (sum_33 config, unit coefs over task-conditioned z) ----
+    # ---- (a) Full-selected FV (sum_33 config, unit coefs over task-conditioned z) ----
     fvs_full = {}
     for tn in task_names:
         z = z_results[tn].to(device)
         fv = torch.zeros(z.shape[-1], dtype=z.dtype, device=device)
-        for l, h in significant:
+        for l, h in selected:
             fv = fv + z[l, h]
         fvs_full[tn] = fv
     accs_full: List[float] = []
@@ -386,10 +386,10 @@ def stage2_head_selection_and_eval(
         )
         accs_full.append(intv)
     full_acc = float(sum(accs_full) / len(accs_full))
-    print(f"[stage 2a] full-significant FV mean intervention acc = {full_acc:.4f}")
+    print(f"[stage 2a] full-selected FV mean intervention acc = {full_acc:.4f}")
 
-    # ---- (a') Raw trained-coefficient FV (Σ_{h ∈ sig} M[l,h]·z[l,h]_task) ----
-    # Same significant head set as (a), but coefficients are the *trained matrix
+    # ---- (a') Raw trained-coefficient FV (Σ_{h ∈ selected} M[l,h]·z[l,h]_task) ----
+    # Same selected head set as (a), but coefficients are the *trained matrix
     # entries* M[l,h] instead of unit. M[l,h] are training-time SNR weights; the
     # paper's FV recipe uses unit coefs (variant a). This row records what the
     # raw trained coefficients alone recover.
@@ -397,7 +397,7 @@ def stage2_head_selection_and_eval(
     for tn in task_names:
         z = z_results[tn].to(device)
         fv = torch.zeros(z.shape[-1], dtype=z.dtype, device=device)
-        for l, h in significant:
+        for l, h in selected:
             fv = fv + float(matrix[l, h]) * z[l, h]
         fvs_raw[tn] = fv
     accs_raw: List[float] = []
@@ -447,12 +447,12 @@ def stage2_head_selection_and_eval(
         rec_bs = min(rec_test_limit, bs) if bs else rec_test_limit
         print(
             f"[stage 2b] recovery scan over c={c_grid}, test_limit={rec_test_limit}, "
-            f"bs={rec_bs}, {len(significant)} sig heads -> "
-            f"~{(1 + len(significant) * (len(c_grid) - 1)) * len(task_names)} task evals"
+            f"bs={rec_bs}, {len(selected)} selected heads -> "
+            f"~{(1 + len(selected) * (len(c_grid) - 1)) * len(task_names)} task evals"
         )
         recovery_per_example, recovery_curves, mean_fv_acc, recovery_meta = (
             recovery_scan(
-                sig_heads=significant,
+                selected_heads=selected,
                 mean_z=mean_z,
                 z_results=z_results,
                 c_grid=c_grid,
@@ -468,7 +468,7 @@ def stage2_head_selection_and_eval(
         )
         main_heads, recovery_decisions = select_main_heads_by_recovery_weak(
             recovery_curves,
-            full_significant_fv_acc=full_acc,
+            full_selected_fv_acc=full_acc,
             rel_floor=args.weak_rel_floor,
             abs_floor=args.weak_abs_floor,
             eps=args.weak_eps,
@@ -476,7 +476,7 @@ def stage2_head_selection_and_eval(
         print(
             f"[stage 2b] recovery(weak)-selected {len(main_heads)} main heads "
             f"(rel_floor={args.weak_rel_floor}, abs_floor={args.weak_abs_floor}, "
-            f"eps={args.weak_eps}, A_sig={full_acc:.4f}): {main_heads}"
+            f"eps={args.weak_eps}, A_selected={full_acc:.4f}): {main_heads}"
         )
     else:
         # Legacy ranking modes (paper-repro path).
@@ -495,7 +495,7 @@ def stage2_head_selection_and_eval(
     main_set = {(int(l), int(h)) for (l, h) in main_heads}
     for tn in task_names:
         base = torch.zeros_like(z_results[tn][0, 0]).to(device)
-        for l, h in significant:
+        for l, h in selected:
             if (l, h) in main_set:
                 base = base + z_results[tn][l, h].to(device)
             else:
@@ -562,7 +562,7 @@ def stage2_head_selection_and_eval(
             ax.set_title(
                 f"Recovery scan: per-head FV(c) = c·z[l,h]_task + Σ_{{h'≠h}} mean_z\n"
                 f"main (weak) = c*>0 ∧ steady rise (dip≤{args.weak_eps}) ∧ "
-                f"gain ≥ max({args.weak_abs_floor}, {args.weak_rel_floor}·(A_sig−acc0))"
+                f"gain ≥ max({args.weak_abs_floor}, {args.weak_rel_floor}·(A_selected−acc0))"
             )
             ax.set_ylim(0, max(1.0, clean_acc + 0.05))
             ax.grid(alpha=0.3)
@@ -580,7 +580,7 @@ def stage2_head_selection_and_eval(
     summary = {
         "threshold": threshold,
         "threshold_method": args.auto_threshold,
-        "significant_heads": [list(h) for h in significant],
+        "selected_heads": [list(h) for h in selected],
         "main_heads": [list(h) for h in main_heads],
         "main_rank_by": args.main_rank_by if not fallback_heads else "fallback",
         "weak_params": (
@@ -588,12 +588,12 @@ def stage2_head_selection_and_eval(
                 "rel_floor": args.weak_rel_floor,
                 "abs_floor": args.weak_abs_floor,
                 "eps": args.weak_eps,
-                "A_sig_ref": full_acc,
+                "A_selected_ref": full_acc,
             }
             if (args.main_rank_by == "recovery" and not fallback_heads)
             else None
         ),
-        "full_significant_fv_acc": full_acc,
+        "full_selected_fv_acc": full_acc,
         "raw_coef_fv_acc": raw_coef_acc,
         "main_plus_meanab_fv_acc": main_meanab_acc,
         "clean_acc": clean_acc,
@@ -640,7 +640,7 @@ def _resolve_savevar_dir(matrix_dir: Path, task_dir: str, n_shot: int) -> Path:
 
 
 def stage3_pca(args, matrix_dir: Path, run_dir: Path, summary2: Dict) -> Dict:
-    """PCA per significant head + period/magnitude axis fit on main heads."""
+    """PCA per selected head + period/magnitude axis fit on main heads."""
     import matplotlib.pyplot as plt
     import numpy as np
     from sklearn.decomposition import PCA
@@ -667,7 +667,7 @@ def stage3_pca(args, matrix_dir: Path, run_dir: Path, summary2: Dict) -> Dict:
     pcs_at_95 = {}
     plots_dir = run_dir / "plots"
     plots_dir.mkdir(parents=True, exist_ok=True)
-    for h in summary2["significant_heads"]:
+    for h in summary2["selected_heads"]:
         l, head = int(h[0]), int(h[1])
         X = (
             torch.stack([z[t][l][head] for t in task_names], dim=0)
@@ -873,14 +873,14 @@ def _render_experiments_md_section(
     headline accuracy table + PCA #PCs@95% + §5 signal extraction +
     the *exact command* used.
     """
-    sig = summary2.get("significant_heads", [])
+    selected = summary2.get("selected_heads", [])
     main = summary2.get("main_heads", [])
     threshold = summary2.get("threshold", float("nan"))
     rank_by = summary2.get("main_rank_by", "?")
     weak_params = summary2.get("weak_params") or {}
     mean_fv = summary2.get("mean_fv_acc", float("nan"))
     clean = summary2.get("clean_acc", float("nan"))
-    full_acc = summary2.get("full_significant_fv_acc", float("nan"))
+    full_acc = summary2.get("full_selected_fv_acc", float("nan"))
     raw_coef_acc = summary2.get("raw_coef_fv_acc", float("nan"))
     main_acc = summary2.get("main_plus_meanab_fv_acc", float("nan"))
 
@@ -909,12 +909,14 @@ def _render_experiments_md_section(
             weak_params.get("abs_floor"),
             weak_params.get("eps"),
         )
-        a_sig = weak_params.get("A_sig_ref")
-        a_sig_str = f"{a_sig:.4f}" if isinstance(a_sig, (int, float)) else "—"
+        a_selected = weak_params.get("A_selected_ref")
+        a_selected_str = (
+            f"{a_selected:.4f}" if isinstance(a_selected, (int, float)) else "—"
+        )
         decisions_md = (
             f"\n**Stage 2b — Recovery (weak) decisions** "
-            f"(global mean-FV acc [all sig ablated] = {mean_fv:.4f}; clean ceiling = {clean:.4f}; "
-            f"acc(c0) = leave-one-out; A_sig (full-sig FV) = {a_sig_str}, headroom = A_sig−acc(c0); "
+            f"(global mean-FV acc [all selected ablated] = {mean_fv:.4f}; clean ceiling = {clean:.4f}; "
+            f"acc(c0) = leave-one-out; A_selected (full-selected FV) = {a_selected_str}, headroom = A_selected−acc(c0); "
             f"gain = acc(c*)−acc(c0); rel = gain/headroom; "
             f"scaled head is task-conditioned; "
             f"main = c*>0 ∧ steady (max dip≤{ep}) ∧ gain ≥ bar = max({af}, {rf}·headroom))\n\n"
@@ -975,7 +977,7 @@ def _render_experiments_md_section(
         f"- Task: `{args.task_dir}`  ·  Layer: `{args.layer_name}`\n"
         f"- Matrix: `{matrix_dir}` (reused={reused})\n"
         f"- Threshold: `{args.auto_threshold}` → "
-        f"{threshold:.4f} ({len(sig)} significant heads)\n"
+        f"{threshold:.4f} ({len(selected)} selected heads)\n"
         f"- Main-head rule: `{rank_by}`"
         + (
             f" (weak: eps={weak_params.get('eps')}, abs_floor={weak_params.get('abs_floor')}, "
@@ -988,9 +990,9 @@ def _render_experiments_md_section(
         f"**Accuracies**\n\n"
         f"| Variant | Mean intervention acc |\n|---|---:|\n"
         f"| Clean baseline (ceiling) | {clean:.4f} |\n"
-        f"| Global mean-FV (all {len(sig)} sig at cross-task mean) | {mean_fv:.4f} |\n"
-        f"| Full significant FV (sum_{len(sig)}, unit coefs) | {full_acc:.4f} |\n"
-        f"| Raw trained-coef FV (Σ M[l,h]·z, {len(sig)} sig) | {raw_coef_acc:.4f} |\n"
+        f"| Global mean-FV (all {len(selected)} selected at cross-task mean) | {mean_fv:.4f} |\n"
+        f"| Full selected FV (sum_{len(selected)}, unit coefs) | {full_acc:.4f} |\n"
+        f"| Raw trained-coef FV (Σ M[l,h]·z, {len(selected)} selected) | {raw_coef_acc:.4f} |\n"
         f"| Main + mean-ablation FV ({len(main)} main) | {main_acc:.4f} |\n"
         f"{decisions_md}"
         f"\n**Stage 3 — PCA #PCs@95% per head**\n\n```json\n"

@@ -37,26 +37,24 @@ def _main_manifest(fake_paths, scan_path, scan, params):
 
 @pytest.fixture()
 def substep_artifacts(fake_paths, tmp_path):
-    significant = make_manifest(
-        kind="significant_heads",
+    selected = make_manifest(
+        kind="selected_heads",
         schema_version=1,
         paths=fake_paths,
         payload={
-            "impl": {"module": "subspaces.step1.significant", "algorithm_version": 1},
+            "impl": {"module": "subspaces.step1.selected", "algorithm_version": 1},
             "heads": [[15, 2, 0.51], [15, 1, 0.44], [13, 6, 0.31], [10, 0, 0.21]],
             "model_dims": {"n_layers": 32, "n_heads": 32},
         },
     )
-    significant_path = tmp_path / "significant_heads.json"
-    write_json_atomic(significant_path, significant)
+    selected_path = tmp_path / "selected_heads.json"
+    write_json_atomic(selected_path, selected)
 
     scan = make_manifest(
         kind="head_scan",
         schema_version=1,
         paths=fake_paths,
-        inputs={
-            "significant_heads": manifest_ref(significant_path, fake_paths, significant)
-        },
+        inputs={"selected_heads": manifest_ref(selected_path, fake_paths, selected)},
         payload={"curves": {}, "c_grid": list(range(21))},
     )
     scan_path = tmp_path / "head_scan.json"
@@ -65,7 +63,7 @@ def substep_artifacts(fake_paths, tmp_path):
     main = _main_manifest(fake_paths, scan_path, scan, {"beta": 0.25, "floor": 0.12})
     main_path = tmp_path / "main_heads.json"
     write_json_atomic(main_path, main)
-    return significant_path, scan_path, scan, main_path
+    return selected_path, scan_path, scan, main_path
 
 
 def test_compose_heads_writes_single_slot_heads_json(
@@ -73,13 +71,13 @@ def test_compose_heads_writes_single_slot_heads_json(
 ):
     """Layout v2 replaced the hashed heads filename with a SINGLE SLOT
     ``heads.json`` per main node: the identity is fully determined by the
-    significant + main pair fixed in that node, and the slot is guarded by
+    selected + main pair fixed in that node, and the slot is guarded by
     refuse-on-different-identity (next tests)."""
-    significant_path, _, _, main_path = substep_artifacts
+    selected_path, _, _, main_path = substep_artifacts
     out_dir = tmp_path / "heads"
     out_dir.mkdir()
     compose_heads(
-        significant_path=significant_path,
+        selected_path=selected_path,
         main_path=main_path,
         paths=fake_paths,
         out_dir=out_dir,
@@ -88,24 +86,24 @@ def test_compose_heads_writes_single_slot_heads_json(
     assert [f.name for f in files] == ["heads.json"]
     manifest = json.loads(files[0].read_text(encoding="utf-8"))
     assert manifest["main_heads"] == [[15, 2], [15, 1], [13, 6]]
-    assert manifest["significant_heads"][0] == [15, 2]
+    assert manifest["selected_heads"][0] == [15, 2]
     assert "scan_outcomes" not in json.dumps(manifest)  # per-example data excluded
 
 
 def test_compose_heads_reuses_identical_and_refuses_tampered(
     fake_paths, tmp_path, substep_artifacts
 ):
-    significant_path, _, _, main_path = substep_artifacts
+    selected_path, _, _, main_path = substep_artifacts
     out_dir = tmp_path / "heads"
     out_dir.mkdir()
     compose_heads(
-        significant_path=significant_path,
+        selected_path=selected_path,
         main_path=main_path,
         paths=fake_paths,
         out_dir=out_dir,
     )
     compose_heads(  # identical inputs -> reuse (still exactly one file)
-        significant_path=significant_path,
+        selected_path=selected_path,
         main_path=main_path,
         paths=fake_paths,
         out_dir=out_dir,
@@ -118,7 +116,7 @@ def test_compose_heads_reuses_identical_and_refuses_tampered(
     files[0].write_text(json.dumps(tampered), encoding="utf-8")
     with pytest.raises(ArtifactError, match="different semantic identity"):
         compose_heads(
-            significant_path=significant_path,
+            selected_path=selected_path,
             main_path=main_path,
             paths=fake_paths,
             out_dir=out_dir,
@@ -132,7 +130,7 @@ def test_different_selector_params_get_different_sibling_nodes(
     main-* node DIRS (``tree.main_dirname`` over params + scan fingerprint +
     selector), each holding its own single-slot heads.json; a different
     selection composed into an occupied slot refuses."""
-    significant_path, scan_path, scan, main_path = substep_artifacts
+    selected_path, scan_path, scan, main_path = substep_artifacts
     other = _main_manifest(fake_paths, scan_path, scan, {"beta": 0.33, "floor": 0.12})
     other_path = tmp_path / "main_heads_b033.json"
     write_json_atomic(other_path, other)
@@ -146,13 +144,13 @@ def test_different_selector_params_get_different_sibling_nodes(
     assert node_a != node_b  # params fork the node dir, not the filename
 
     compose_heads(
-        significant_path=significant_path,
+        selected_path=selected_path,
         main_path=main_path,
         paths=fake_paths,
         out_dir=node_a,
     )
     compose_heads(
-        significant_path=significant_path,
+        selected_path=selected_path,
         main_path=other_path,
         paths=fake_paths,
         out_dir=node_b,
@@ -164,7 +162,7 @@ def test_different_selector_params_get_different_sibling_nodes(
     # the single slot is guarded: the other selection cannot land in node_a
     with pytest.raises(ArtifactError, match="different semantic identity"):
         compose_heads(
-            significant_path=significant_path,
+            selected_path=selected_path,
             main_path=other_path,
             paths=fake_paths,
             out_dir=node_a,

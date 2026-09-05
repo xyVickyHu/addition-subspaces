@@ -658,7 +658,7 @@ def _annotate_args_json(matrix_dir: Path, cfg: Step1Config) -> None:
 def _validate_checkpoint(path: Path) -> None:
     """torch.load-validate a checkpoint (torch.save is not atomic: a kill
     mid-save leaves a well-named partial file that would otherwise wedge the
-    run at the significant substep or poison a resume)."""
+    run at the selected substep or poison a resume)."""
     import torch  # heavy
 
     try:
@@ -676,7 +676,7 @@ def train_matrix(cfg: Step1Config, paths: ProjectPaths, run_dir: Path) -> dict:
 
     The numerical core is the LEGACY trainer (``subspaces.runners.train_matrix``),
     driven in-process with explicit arguments — zero drift by construction,
-    the same policy as the significant/eval substeps. The fixed committed
+    the same policy as the selected/eval substeps. The fixed committed
     split supplies the indist/ood keys; training monitors the held-out (OOD)
     tasks exactly as the historical procedure did — diagnostics only: the
     checkpoint choice is the fixed final epoch, never validation-based, so

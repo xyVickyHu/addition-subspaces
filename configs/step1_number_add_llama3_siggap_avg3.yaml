@@ -31,7 +31,7 @@ samples:
   scan: {examples_per_task: 100, seed: 42, task_set: train}
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
-significant:
+selected:
   method: largest_gap
 scan:
   c_min: 0

@@ -5,7 +5,8 @@ Deliberately small — this is not a generic artifact system. It provides:
 - atomic JSON reads/writes with a versioned envelope;
 - content hashes for files and canonical-JSON objects;
 - semantic fingerprints that EXCLUDE timestamps and locator paths, so moving a
-  run directory or re-stamping a manifest never changes identity;
+  run directory or re-stamping a manifest never changes identity, and that are
+  computed over the legacy head-set spelling (see the terminology block);
 - input references (relative path + sha256) with validation that refuses
   mismatched inputs instead of silently proceeding.
 """
@@ -62,6 +63,94 @@ class ArtifactError(RuntimeError):
     pass
 
 
+# -- head-set terminology (camera-ready rename, 2026-09) ----------------------
+#
+# The COLM 2026 camera-ready renamed the three nested head sets, and the code
+# follows the paper: ``selected`` (sparse optimization; 33 on the paper matrix;
+# formerly "significant"/"sig"), ``significant`` (paired McNemar + BH over the
+# recovery scan; 13; formerly "recovery-positive"/"recpos"), ``main`` (the
+# quarter-gain rule; 3; unchanged). Code, CLI, directory names and NEW
+# manifests spell the paper vocabulary. Every manifest written before the
+# rename spells its keys/kinds the old way, and every recorded fingerprint and
+# identity was computed over that spelling. Identity must not fork on a
+# spelling change (AGENTS.md: reuse identical work), so:
+#
+# - ``semantic_fingerprint``/``identity_content_hash`` hash the LEGACY spelling
+#   (``canonicalize``): a manifest regenerated under the new spelling keeps its
+#   identity and every recorded reference to it still verifies;
+# - ``read_manifest`` translates legacy manifests to the new spelling on read
+#   (``modernize``), so consumers see one vocabulary.
+#
+# These two tables are the single source of truth for the mapping. Extend them
+# for every renamed persisted key/value. A modern spelling must never equal a
+# key that already existed with another meaning (``n_selected`` — the count a
+# selector chose — is such a key, which is why the selected-set size is
+# ``n_selected_set`` in headset evaluations and ``n_scanned`` in selector
+# verdicts); ``_respell`` refuses the resulting collision, and
+# tests/test_artifacts.py pins the round trip.
+_PKG = __name__.split(".")[0]
+LEGACY_KEY_SPELLING: dict[str, str] = {  # modern key -> legacy key, any depth
+    "selected": "significant",  # config slice / nodes summary
+    "selected_heads": "significant_heads",  # artifact kind, input ref, payload
+    "n_selected_set": "n_significant",  # headset-eval payload
+    "n_scanned": "n_sig",  # selector verdicts
+    "n_selected_heads": "n_sig_heads",  # head_scan payload
+    "full_selected": "full_sig",  # headset-eval / scan arm name
+    "full_selected_acc": "full_significant_acc",  # scan baselines
+    "full_selected_fv_acc": "full_significant_fv_acc",  # legacy stage summary
+    "A_selected_ref": "A_sig_ref",  # legacy stage summary weak_params
+    "significant_main_heads": "recpos_main_heads",  # projection-causal input ref
+    "headroom_vs_sumSelected": "headroom_vs_sumSig",  # recovery_weak decisions
+    f"{_PKG}.step1.selected": f"{_PKG}.step1.significant",  # algorithm_versions
+}
+LEGACY_VALUE_SPELLING: dict[tuple[str, str], str] = {  # (key, modern) -> legacy
+    ("kind", "selected_heads"): "significant_heads",
+    ("module", f"{_PKG}.step1.selected"): f"{_PKG}.step1.significant",
+}
+MODERN_KEY_SPELLING = {legacy: modern for modern, legacy in LEGACY_KEY_SPELLING.items()}
+MODERN_VALUE_SPELLING = {
+    (key, legacy): modern for (key, modern), legacy in LEGACY_VALUE_SPELLING.items()
+}
+
+
+def _respell(obj: Any, key_map: dict, value_map: dict) -> Any:
+    if isinstance(obj, dict):
+        out: dict = {}
+        for key, value in obj.items():
+            new_key = key_map.get(key, key) if isinstance(key, str) else key
+            if new_key in out:
+                raise ArtifactError(
+                    f"ambiguous head-set spelling: both {key!r} and {new_key!r} "
+                    "present in one mapping"
+                )
+            if isinstance(value, str):
+                value = value_map.get((new_key, value), value)
+            else:
+                value = _respell(value, key_map, value_map)
+            out[new_key] = value
+        return out
+    if isinstance(obj, list):
+        return [_respell(item, key_map, value_map) for item in obj]
+    return obj
+
+
+def canonicalize(obj: Any) -> Any:
+    """Modern -> legacy spelling (the hashed form)."""
+    return _respell(obj, LEGACY_KEY_SPELLING, LEGACY_VALUE_SPELLING)
+
+
+def modernize(obj: Any) -> Any:
+    """Legacy -> modern spelling (applied to every manifest read)."""
+    return _respell(obj, MODERN_KEY_SPELLING, MODERN_VALUE_SPELLING)
+
+
+def legacy_spellings(key: str) -> tuple[str, ...]:
+    """The modern key followed by its legacy spelling (for array stores such
+    as npz files, which are not translated on read)."""
+    legacy = LEGACY_KEY_SPELLING.get(key)
+    return (key,) if legacy is None else (key, legacy)
+
+
 # -- hashing ----------------------------------------------------------------
 
 
@@ -94,8 +183,15 @@ def _strip_volatile(obj: Any) -> Any:
 
 
 def semantic_fingerprint(manifest: dict) -> str:
-    """Identity hash of a manifest, ignoring timestamps and locator paths."""
-    return content_hash(_strip_volatile(manifest))
+    """Identity hash of a manifest, ignoring timestamps and locator paths, and
+    spelling-independent (hashed over the legacy head-set spelling)."""
+    return content_hash(canonicalize(_strip_volatile(manifest)))
+
+
+def identity_content_hash(obj: Any) -> str:
+    """``content_hash`` over the canonical (legacy) head-set spelling — for
+    identity records that are hashed verbatim (run identities)."""
+    return content_hash(canonicalize(obj))
 
 
 def dataset_fingerprint(task_dir: str | Path) -> str:
@@ -190,7 +286,7 @@ def read_manifest(
     if not manifest_path.is_file():
         raise ArtifactError(f"artifact manifest not found: {manifest_path}")
     with open(manifest_path, encoding="utf-8") as fh:
-        manifest = json.load(fh)
+        manifest = modernize(json.load(fh))
     kind = manifest.get("kind")
     if kind != expect_kind:
         raise ArtifactError(

@@ -188,7 +188,7 @@ def periodic_repo(fake_repo):
         schema_version=1,
         paths=paths,
         payload={
-            "significant_heads": [[1, 1], [2, 3], [0, 0]],
+            "selected_heads": [[1, 1], [2, 3], [0, 0]],
             "main_heads": [[1, 1], [2, 3]],
             "minor_heads": [],
             "model_dims": {"n_layers": 4, "n_heads": 4},

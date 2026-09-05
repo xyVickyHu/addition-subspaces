@@ -5,7 +5,7 @@ protocol-filtered held-out cache discovery — see that module for the rules).
 Review the YAML, commit it (e.g. under ``configs/contexts/``), then run::
 
     .venv/bin/python scripts/make_step2_context.py \\
-        --heads-artifact log/runs/<node>/sig-*/scan-*/main-largest_gap-v1-<h8>/main_heads.json \\
+        --heads-artifact log/runs/<node>/selected-*/scan-*/main-largest_gap-v1-<h8>/main_heads.json \\
         --include-heldout --out configs/contexts/<cell>.yaml
     .venv/bin/python -m subspaces.runners.step2 --context configs/contexts/<cell>.yaml
 """

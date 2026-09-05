@@ -3,7 +3,7 @@ fakes): composed run completeness, sequential == composed equivalence,
 selector-change reuse, and runtime holdout ordering.
 
 Artifacts live in the lineage tree (``subspaces.step1.tree``):
-``log/runs/<node>__<key12>/sig-*/scan-*/main-*/`` with per-invocation config
+``log/runs/<node>__<key12>/selected-*/scan-*/main-*/`` with per-invocation config
 records in ``log/journal/<run>__<id12>/`` and content-addressed sample
 manifests in ``log/cache/samples/<fp16>/``.
 """
@@ -46,9 +46,9 @@ def _runs_tree_fps(root) -> dict:
 def test_scan_head_limit_bounds_scanned_heads():
     from subspaces.step1.recovery import scanned_heads
 
-    significant = {"heads": [[1, 1, 0.9], [2, 3, 0.8], [0, 0, 0.1]]}
-    assert scanned_heads(significant, None) == [(1, 1), (2, 3), (0, 0)]
-    assert scanned_heads(significant, 2) == [(1, 1), (2, 3)]
+    selected = {"heads": [[1, 1, 0.9], [2, 3, 0.8], [0, 0, 0.1]]}
+    assert scanned_heads(selected, None) == [(1, 1), (2, 3), (0, 0)]
+    assert scanned_heads(selected, 2) == [(1, 1), (2, 3)]
 
 
 def test_raw_coef_vector_uses_the_full_head_grid():
@@ -76,13 +76,13 @@ def test_composed_run_completes_with_all_artifacts(fake_repo, gpu_stubs):
     assert (journal_dir / "nodes.json").is_file()
 
     matrix_node = paths.resolve(summary["nodes"]["matrix"])
-    sig_node = paths.resolve(summary["nodes"]["significant"])
+    selected_node = paths.resolve(summary["nodes"]["selected"])
     scan_node = paths.resolve(summary["nodes"]["scan"])
     main_node = paths.resolve(summary["latest_selection"]["main_node"])
-    # lineage-tree placement: matrix node > sig-* > scan-* > main-*
+    # lineage-tree placement: matrix node > selected-* > scan-* > main-*
     assert matrix_node.parent == paths.runs_dir
-    assert sig_node == tree.sig_node_dir(matrix_node, cfg.significant)
-    assert scan_node.parent == sig_node
+    assert selected_node == tree.selected_node_dir(matrix_node, cfg.selected)
+    assert scan_node.parent == selected_node
     assert scan_node.name.startswith(
         f"scan-{cfg.samples.scan.examples_per_task}x{cfg.scan.c_max}-"
     )
@@ -90,13 +90,18 @@ def test_composed_run_completes_with_all_artifacts(fake_repo, gpu_stubs):
     assert main_node.name.startswith("main-")
 
     assert (matrix_node / "matrix_ref.json").is_file()
-    assert (sig_node / "significant_heads.json").is_file()
+    assert (selected_node / "selected_heads.json").is_file()
     assert (scan_node / "head_scan.json").is_file()
     assert (scan_node / "scan_outcomes.npz").is_file()
     assert (main_node / "main_heads.json").is_file()
     assert list(main_node.glob("eval-*-outcomes.npz"))
     assert (main_node / "heads.json").is_file()
-    assert set(summary["metrics"]) == {"clean", "full_sig", "raw_coef", "main_meanab"}
+    assert set(summary["metrics"]) == {
+        "clean",
+        "full_selected",
+        "raw_coef",
+        "main_meanab",
+    }
 
     scan = json.loads((scan_node / "head_scan.json").read_text(encoding="utf-8"))
     c_grid = list(range(cfg.scan.c_min, cfg.scan.c_max + 1))
@@ -203,11 +208,11 @@ def test_sequential_subcommands_equal_composed_run(tmp_path, gpu_stubs):
     repo_b = build_fake_repo(tmp_path / "sequential")
     config = str(repo_b / "configs" / "step1_test.yaml")
     root = ["--root", str(repo_b)]
-    assert step1_cli.main([*root, "select-significant", "--config", config]) == 0
+    assert step1_cli.main([*root, "extract-selected", "--config", config]) == 0
     assert step1_cli.main([*root, "make-samples", "--config", config]) == 0
-    # explicit artifact handoff: scan consumes the persisted significant
-    significant_path = next(
-        (repo_b / "log" / "runs").glob("*/sig-*/significant_heads.json")
+    # explicit artifact handoff: scan consumes the persisted selected
+    selected_path = next(
+        (repo_b / "log" / "runs").glob("*/selected-*/selected_heads.json")
     )
     assert (
         step1_cli.main(
@@ -216,13 +221,15 @@ def test_sequential_subcommands_equal_composed_run(tmp_path, gpu_stubs):
                 "scan",
                 "--config",
                 config,
-                "--significant",
-                str(significant_path),
+                "--selected",
+                str(selected_path),
             ]
         )
         == 0
     )
-    scan_path = next((repo_b / "log" / "runs").glob("*/sig-*/scan-*/head_scan.json"))
+    scan_path = next(
+        (repo_b / "log" / "runs").glob("*/selected-*/scan-*/head_scan.json")
+    )
     assert (
         step1_cli.main(
             [*root, "select-main", "--scan", str(scan_path), "--selector", "unified"]
@@ -250,8 +257,8 @@ def test_sequential_subcommands_equal_composed_run(tmp_path, gpu_stubs):
             [
                 *root,
                 "compose",
-                "--significant",
-                str(significant_path),
+                "--selected",
+                str(selected_path),
                 "--main",
                 str(main_path),
             ]
@@ -264,7 +271,7 @@ def test_sequential_subcommands_equal_composed_run(tmp_path, gpu_stubs):
     names = {Path(rel).name for rel in fps_composed}
     assert {
         "matrix_ref.json",
-        "significant_heads.json",
+        "selected_heads.json",
         "head_scan.json",
         "main_heads.json",
         "heads.json",
@@ -273,7 +280,7 @@ def test_sequential_subcommands_equal_composed_run(tmp_path, gpu_stubs):
 
 
 def test_selector_change_composed_run_reuses_scan(fake_repo, gpu_stubs, monkeypatch):
-    """PLAN invariant: changing ONLY the selector reuses matrix, significant,
+    """PLAN invariant: changing ONLY the selector reuses matrix, selected,
     caches, and scan — through the COMPOSED flow (same journal, same scan
     node), with the GPU primitives booby-trapped on the second run."""
     paths = ProjectPaths.from_root(fake_repo)
@@ -401,7 +408,7 @@ def test_outcome_rows_align_with_manifest_prompts(fake_repo, gpu_stubs):
     cfg = _cfg(fake_repo)
     summary = pipeline.run(cfg, paths)
     scan_node = paths.resolve(summary["nodes"]["scan"])
-    sig_node = paths.resolve(summary["nodes"]["significant"])
+    selected_node = paths.resolve(summary["nodes"]["selected"])
     scan = json.loads((scan_node / "head_scan.json").read_text(encoding="utf-8"))
     _, split, _ = pipeline.ensure_run(cfg, paths)
     samples = pipeline.stage_selection_samples(cfg, paths, split)["scan"][0]
@@ -423,14 +430,14 @@ def test_outcome_rows_align_with_manifest_prompts(fake_repo, gpu_stubs):
     z = _fake_compute_z(None, samples, list(scan["task_order"]))
     import torch
 
-    sig_heads = [
+    selected_heads = [
         (h[0], h[1])
         for h in json.loads(
-            (sig_node / "significant_heads.json").read_text(encoding="utf-8")
+            (selected_node / "selected_heads.json").read_text(encoding="utf-8")
         )["heads"]
     ]
     mean_z = torch.stack([z[t] for t in scan["task_order"]]).mean(0)
-    mean_fv = sum(mean_z[layer, head] for layer, head in sig_heads)
+    mean_fv = sum(mean_z[layer, head] for layer, head in selected_heads)
     layer, head = scan["scanned_heads"][0]
     c = 1
     rows = []
@@ -467,7 +474,7 @@ def _paired_scan_node(fake_repo, paths):
         / "log"
         / "runs"
         / "node__abc123def456"
-        / "sig-elbow-v1"
+        / "selected-elbow-v1"
         / "scan-5x1-aaaaaa"
     )
     scan_dir.mkdir(parents=True)
@@ -478,7 +485,7 @@ def _paired_scan_node(fake_repo, paths):
         paths=paths,
         payload={
             "curves": {"1:1": {"0": float(y0.mean()), "1": float(y1.mean())}},
-            "baselines": {"clean_acc": 1.0, "full_significant_acc": 0.6},
+            "baselines": {"clean_acc": 1.0, "full_selected_acc": 0.6},
             "n_eval_examples_per_head_per_c": 20,
             "c_grid": [0, 1],
             "outcomes": {
@@ -503,7 +510,7 @@ def test_apply_selector_paired_family_loads_verified_outcomes(fake_repo):
         params={"q": 0.05},
         paths=paths,
     )
-    assert node.name.startswith("recpos-paired_bh-v1-")
+    assert node.name.startswith("significant-paired_bh-v1-")
     assert (node / "main_heads.json").is_file()
     assert manifest["main_heads"] == [[1, 1]]
     assert manifest["params"] == {"q": 0.05}
@@ -562,7 +569,12 @@ def test_apply_selector_paired_family_outcome_refusals(fake_repo):
     assert (pin_node / "main_heads.json").is_file()
     # a scan manifest without an outcomes reference cannot serve the family
     bare_dir = (
-        fake_repo / "log" / "runs" / "node__abc123def456" / "sig-elbow-v1" / "scan-bare"
+        fake_repo
+        / "log"
+        / "runs"
+        / "node__abc123def456"
+        / "selected-elbow-v1"
+        / "scan-bare"
     )
     bare_dir.mkdir(parents=True)
     bare = make_manifest(
@@ -571,7 +583,7 @@ def test_apply_selector_paired_family_outcome_refusals(fake_repo):
         paths=paths,
         payload={
             "curves": {"1:1": {"0": 0.1, "1": 0.6}},
-            "baselines": {"clean_acc": 1.0, "full_significant_acc": 0.6},
+            "baselines": {"clean_acc": 1.0, "full_selected_acc": 0.6},
             "n_eval_examples_per_head_per_c": 20,
             "c_grid": [0, 1],
         },
@@ -605,7 +617,7 @@ def test_select_main_cli_paired_selector(fake_repo):
     assert step1_cli.main(base) == 0  # preset q=0.05
     assert step1_cli.main([*base, "--param", "q=0.01"]) == 0
     assert step1_cli.main([*base, "--param", "alpha=0.05"]) == 2  # unknown name
-    nodes = sorted(p.name for p in scan_dir.glob("recpos-paired_bh-v1-*"))
+    nodes = sorted(p.name for p in scan_dir.glob("significant-paired_bh-v1-*"))
     assert len(nodes) == 2  # q=0.05 and q=0.01 siblings
 
 
@@ -672,7 +684,7 @@ def test_compose_refuses_default_out_dir_inside_frozen_run(fake_repo, capsys):
                 "--root",
                 str(fake_repo),
                 "compose",
-                "--significant",
+                "--selected",
                 str(fake_repo / "nowhere.json"),
                 "--main",
                 str(main_path),
@@ -717,7 +729,7 @@ def test_headset_refuses_foreign_main(fake_repo, gpu_stubs):
 
     journal_dir, split, resolved = pipeline.ensure_run(cfg, paths)
     matrix_ref, matrix_node = pipeline.stage_matrix(cfg, paths, journal_dir)
-    significant, sig_node = pipeline.stage_significant(
+    selected, selected_node = pipeline.stage_selected(
         cfg, paths, matrix_node, matrix_ref
     )
     samples = pipeline.stage_selection_samples(cfg, paths, split)
@@ -727,9 +739,9 @@ def test_headset_refuses_foreign_main(fake_repo, gpu_stubs):
             paths,
             split,
             matrix_node,
-            sig_node,
+            selected_node,
             scan_node,
-            significant,
+            selected,
             matrix_ref,
             foreign,
             foreign_node,
@@ -757,7 +769,7 @@ def test_headset_refuses_foreign_or_stale_scan_on_disk(fake_repo, gpu_stubs):
 
     journal_dir, split, resolved = pipeline.ensure_run(cfg, paths)
     matrix_ref, matrix_node = pipeline.stage_matrix(cfg, paths, journal_dir)
-    significant, sig_node = pipeline.stage_significant(
+    selected, selected_node = pipeline.stage_selected(
         cfg, paths, matrix_node, matrix_ref
     )
     samples = pipeline.stage_selection_samples(cfg, paths, split)
@@ -771,9 +783,9 @@ def test_headset_refuses_foreign_or_stale_scan_on_disk(fake_repo, gpu_stubs):
             paths,
             split,
             matrix_node,
-            sig_node,
+            selected_node,
             scan_node,
-            significant,
+            selected,
             matrix_ref,
             main_manifest,
             main_node,

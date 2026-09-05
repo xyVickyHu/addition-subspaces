@@ -8,7 +8,7 @@
 #SBATCH --output=log/slurm/fiveshot_necessity_%j.out
 #
 # Five-shot necessity check (paper §3.2 camera-ready paragraph): mean-ablate
-# the main trio / random significant 3-subsets during the clean five-shot
+# the main trio / random selected 3-subsets during the clean five-shot
 # forward pass of an existing headset_eval cell. Usage:
 #   sbatch scripts/fiveshot_necessity.sbatch <headset_eval-manifest> [extra args]
 # Submit FROM THE REPO ROOT.

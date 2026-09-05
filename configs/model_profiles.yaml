@@ -50,7 +50,7 @@ profiles:
                 note: "unit-coef FV metrics collapse — report raw_coef"}
     gpu: {min_vram_gib: 40, node_pin: null,
           note: "80GB node when bs=128 on semantic/mixed prompts;
-                 262-310 significant heads -> ~8x llama scan cost"}
+                 262-310 selected heads -> ~8x llama scan cost"}
     status: historical (canonical add matrix reproduces paper L21 quartet)
   qwen3-8b:
     model_name: Qwen/Qwen3-8B

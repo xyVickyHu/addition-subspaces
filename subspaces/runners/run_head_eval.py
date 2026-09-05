@@ -1,4 +1,4 @@
-"""Paper phase 2 — per-head significance evaluation.
+"""Paper phase 2 — per-head FV evaluation.
 
 For each head selected above ``--threshold`` from the trained matrix, sweep a
 scalar coefficient and measure intervention accuracy when that head is scaled

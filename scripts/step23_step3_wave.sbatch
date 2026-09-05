@@ -6,9 +6,9 @@
 #
 # Step-3 token-group wave (2026-08-04; grouping v2): one token-group
 # decomposition per cell of
-# configs/step23_recpos_cells.tsv over the cell's recovery-positive head set
+# configs/step23_significant_cells.tsv over the cell's significant head set
 # (⊇ the unified mains — main-head distributions are read from the same
-# artifact), context configs/contexts/step3_recpos_<slug>.yaml.
+# artifact), context configs/contexts/step3_significant_<slug>.yaml.
 #
 #   sbatch -p YOUR_PARTITION scripts/step23_step3_wave.sbatch [odd|even|all|<slug>] [extra step3 args...]
 #
@@ -35,7 +35,7 @@ nvidia-smi --query-gpu=name,memory.total --format=csv || true
 
 INDEX=0
 N_DONE=0
-while IFS=$'\t' read -r SLUG CONFIG RECPOS UNIFIED; do
+while IFS=$'\t' read -r SLUG CONFIG SIGNIFICANT UNIFIED; do
   [[ -z "$SLUG" || "$SLUG" == \#* ]] && continue
   INDEX=$((INDEX + 1))
   case "$SELECT" in
@@ -44,11 +44,11 @@ while IFS=$'\t' read -r SLUG CONFIG RECPOS UNIFIED; do
     even) [[ $((INDEX % 2)) -eq 0 ]] || continue ;;
     *)    [[ "$SLUG" == "$SELECT" ]] || continue ;;
   esac
-  CONTEXT="configs/contexts/step3_recpos_${SLUG}.yaml"
+  CONTEXT="configs/contexts/step3_significant_${SLUG}.yaml"
   echo "[step3wave] ==== $SLUG  context=$CONTEXT"
-  echo "[step3wave]      heads=$RECPOS"
+  echo "[step3wave]      heads=$SIGNIFICANT"
   /usr/bin/time -v .venv/bin/python -m subspaces.runners.step3 \
-    --context "$CONTEXT" --heads-artifact "$RECPOS" --head-set main "$@"
+    --context "$CONTEXT" --heads-artifact "$SIGNIFICANT" --head-set main "$@"
   N_DONE=$((N_DONE + 1))
-done < configs/step23_recpos_cells.tsv
+done < configs/step23_significant_cells.tsv
 echo "[step3wave] all $N_DONE cells complete (select=$SELECT)"

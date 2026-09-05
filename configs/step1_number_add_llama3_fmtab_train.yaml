@@ -6,7 +6,7 @@
 #   sbatch -p YOUR_PARTITION scripts/step1_train_only.sbatch \
 #     configs/step1_number_add_llama3_fmtqa_train.yaml
 # Historical anchors (legacy format sweep, qa): clean 0.43, elbow ~49
-# sig heads, weak20 main (15,2),(15,1) — the trio is expected to remain the
+# selected heads, weak20 main (15,2),(15,1) — the trio is expected to remain the
 # unified-v1 leader set; clean is EXPECTED to drop well below arrow's 0.87.
 schema_version: 1
 run_name: addllama_fmtab_train
@@ -44,7 +44,7 @@ samples:
   scan: {examples_per_task: 100, seed: 42, task_set: train}
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
-significant:
+selected:
   method: elbow
 scan:
   c_min: 0

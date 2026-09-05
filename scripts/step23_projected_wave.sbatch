@@ -5,10 +5,10 @@
 #SBATCH --output=log/slurm/projwave_%j.out
 #
 # Step-2b projected-intervention wave (2026-08-04): for every cell of
-# configs/step23_recpos_cells.tsv, two impl-v4 headset evaluations with the
-# projected arm (proj_meanab; --subspace = the recpos node's step-2 artifact
-# over the recpos superset): (1) the unified floor-0 MAIN set, (2) the
-# recovery-positive (paired_bh q=.05) set. Set-independent baselines must
+# configs/step23_significant_cells.tsv, two impl-v4 headset evaluations with the
+# projected arm (proj_meanab; --subspace = the significant node's step-2 artifact
+# over the significant superset): (1) the unified floor-0 MAIN set, (2) the
+# significant (paired_bh q=.05) set. Set-independent baselines must
 # reproduce the cells' existing impl-v4 values bit-exactly (quote rule:
 # floor twins are set-identical).
 #
@@ -36,7 +36,7 @@ nvidia-smi --query-gpu=name,memory.total --format=csv || true
 
 INDEX=0
 N_DONE=0
-while IFS=$'\t' read -r SLUG CONFIG RECPOS UNIFIED; do
+while IFS=$'\t' read -r SLUG CONFIG SIGNIFICANT UNIFIED; do
   [[ -z "$SLUG" || "$SLUG" == \#* ]] && continue
   INDEX=$((INDEX + 1))
   case "$SELECT" in
@@ -45,14 +45,14 @@ while IFS=$'\t' read -r SLUG CONFIG RECPOS UNIFIED; do
     even) [[ $((INDEX % 2)) -eq 0 ]] || continue ;;
     *)    [[ "$SLUG" == "$SELECT" ]] || continue ;;
   esac
-  NODE_DIR="$(dirname "$RECPOS")"
+  NODE_DIR="$(dirname "$SIGNIFICANT")"
   mapfile -t SUBS < <(ls "$NODE_DIR"/subspace-*.json 2>/dev/null)
   if [[ ${#SUBS[@]} -ne 1 ]]; then
     echo "[projwave] ERROR: expected exactly 1 subspace artifact in $NODE_DIR, found ${#SUBS[@]}" >&2
     exit 1
   fi
   SUBSPACE="${SUBS[0]}"
-  for MAIN in "$RECPOS" "$UNIFIED"; do
+  for MAIN in "$SIGNIFICANT" "$UNIFIED"; do
     echo "[projwave] ==== $SLUG  config=$CONFIG"
     echo "[projwave]      main=$MAIN"
     echo "[projwave]      subspace=$SUBSPACE"
@@ -60,5 +60,5 @@ while IFS=$'\t' read -r SLUG CONFIG RECPOS UNIFIED; do
       --config "$CONFIG" --main "$MAIN" --subspace "$SUBSPACE"
     N_DONE=$((N_DONE + 1))
   done
-done < configs/step23_recpos_cells.tsv
+done < configs/step23_significant_cells.tsv
 echo "[projwave] all $N_DONE evaluations complete (select=$SELECT)"

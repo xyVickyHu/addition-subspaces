@@ -296,14 +296,14 @@ def auto_main_heads(
 
 
 # -----------------------------------------------------------------------------
-# Recovery scan — dose-response per significant head, used by the new
+# Recovery scan — dose-response per selected head, used by the new
 # data-driven main-head selector.
 # -----------------------------------------------------------------------------
 
 
 def recovery_scan(
     *,
-    sig_heads: Sequence[Tuple[int, int]],
+    selected_heads: Sequence[Tuple[int, int]],
     mean_z: torch.Tensor,
     z_results: dict,
     c_grid: Sequence[int],
@@ -320,20 +320,20 @@ def recovery_scan(
 ) -> Tuple[dict, dict, float, dict]:
     """Per-head dose-response scan with the *scaled head kept task-conditioned*.
 
-    For each sig head ``(l, h)`` and integer scalar ``c`` in ``c_grid``, and for
+    For each selected head ``(l, h)`` and integer scalar ``c`` in ``c_grid``, and for
     each task ``t``, build
 
-        ``FV(c, h, t) = c · z_results[t][l, h] + Σ_{h' ≠ h ∈ sig} mean_z[h']``
+        ``FV(c, h, t) = c · z_results[t][l, h] + Σ_{h' ≠ h ∈ selected} mean_z[h']``
 
     i.e. the *scaled* head keeps its **original per-task value** (scaled by
-    ``c``) while every other significant head is held at its **cross-task mean**
+    ``c``) while every other selected head is held at its **cross-task mean**
     (mean-ablation). Because the scaled head is task-conditioned, the FV varies
     per task and ``c = 1`` is **no longer a global invariant** — each head has
     its own natural-scale (``c = 1``) accuracy. ``c = 1`` is that head's natural
     magnitude (reference for "does scaling up help"); ``c = 0`` is leave-one-out
     (head removed, all others at mean).
 
-    Precompute ``mean_fv = Σ_{h ∈ sig} mean_z[h]`` once; the others-term for head
+    Precompute ``mean_fv = Σ_{h ∈ selected} mean_z[h]`` once; the others-term for head
     ``(l, h)`` is then ``mean_fv − mean_z[l, h]``.
 
     We seed ``random`` deterministically *per task* before each call so the same
@@ -344,15 +344,17 @@ def recovery_scan(
     Returns:
         per_example_correctness: ``{(L, H): {c: [0/1, ...]}}`` (per-example 0/1).
         per_head_curves: ``{(L, H): {c: mean_acc}}`` (aggregated dose-response).
-        mean_fv_acc: scalar accuracy of the global mean-FV (all sig heads at
+        mean_fv_acc: scalar accuracy of the global mean-FV (all selected heads at
             their cross-task mean) — a diagnostic, *not* the per-head c=1.
-        meta: bookkeeping (sig head count, c grid, etc.).
+        meta: bookkeeping (selected head count, c grid, etc.).
     """
     import random as _random
 
     from .intervene import eval_fv_per_example_correctness
 
-    sig_heads_t: List[Tuple[int, int]] = [(int(l), int(h)) for (l, h) in sig_heads]
+    selected_heads_t: List[Tuple[int, int]] = [
+        (int(l), int(h)) for (l, h) in selected_heads
+    ]
     mean_z = mean_z.to(device)
     z_dev = {tn: z_results[tn].to(device) for tn in task_names}
     c_grid = list(c_grid)
@@ -362,10 +364,10 @@ def recovery_scan(
         )
 
     mean_fv = torch.zeros(mean_z.shape[-1], device=device, dtype=mean_z.dtype)
-    for l, h in sig_heads_t:
+    for l, h in selected_heads_t:
         mean_fv = mean_fv + mean_z[l, h]
 
-    # Global mean-FV diagnostic — all sig heads held at their cross-task mean.
+    # Global mean-FV diagnostic — all selected heads held at their cross-task mean.
     fv_meanall = {tn: mean_fv for tn in task_names}
     meanall_corr: List[int] = []
     for ti, tn in enumerate(task_names):
@@ -385,14 +387,14 @@ def recovery_scan(
     mean_fv_acc = sum(meanall_corr) / max(len(meanall_corr), 1)
     if verbose:
         print(
-            f"[recovery_scan] global mean-FV acc (all sig at cross-task mean): "
+            f"[recovery_scan] global mean-FV acc (all selected at cross-task mean): "
             f"{mean_fv_acc:.4f} (n={len(meanall_corr)})",
             flush=True,
         )
 
     per_example: dict = {}
     per_head_curves: dict = {}
-    for hi, (l, h) in enumerate(sig_heads_t):
+    for hi, (l, h) in enumerate(selected_heads_t):
         others_term = mean_fv - mean_z[l, h]
         per_example[(l, h)] = {}
         per_head_curves[(l, h)] = {}
@@ -421,13 +423,13 @@ def recovery_scan(
                 f"c={c}:{per_head_curves[(l, h)][c]:.3f}" for c in c_grid
             )
             print(
-                f"[recovery_scan] head ({l},{h}) [{hi + 1}/{len(sig_heads_t)}]: {pretty}",
+                f"[recovery_scan] head ({l},{h}) [{hi + 1}/{len(selected_heads_t)}]: {pretty}",
                 flush=True,
             )
 
     meta = {
         "mean_fv_acc": float(mean_fv_acc),
-        "n_sig_heads": len(sig_heads_t),
+        "n_selected_heads": len(selected_heads_t),
         "c_grid": list(c_grid),
         "n_eval_examples_per_head_per_c": len(meanall_corr),
         "scaled_head_vector": "task_conditioned",
@@ -438,7 +440,7 @@ def recovery_scan(
 def select_main_heads_by_recovery_weak(
     per_head_curves: dict,
     *,
-    full_significant_fv_acc: float,
+    full_selected_fv_acc: float,
     rel_floor: float = 0.2,
     abs_floor: float = 0.01,
     eps: float = 0.01,
@@ -452,10 +454,10 @@ def select_main_heads_by_recovery_weak(
     references (per the task design):
 
         * ``acc0 = acc_h(c=0)`` — the head's leave-one-out accuracy (head removed,
-          every other significant head held at its cross-task mean);
-        * ``A_sig = full_significant_fv_acc`` — accuracy of the *sum of all
-          significant heads at unit coefficient* (the full-sig-set FV). This is
-          how far the whole localized set gets; ``headroom = A_sig − acc0`` is
+          every other selected head held at its cross-task mean);
+        * ``A_selected = full_selected_fv_acc`` — accuracy of the *sum of all
+          selected heads at unit coefficient* (the full-selected-set FV). This is
+          how far the whole localized set gets; ``headroom = A_selected − acc0`` is
           the room a single head could plausibly recover.
 
     For head ``h`` with dose-response curve ``acc_h(c)`` over the scan grid:
@@ -468,10 +470,10 @@ def select_main_heads_by_recovery_weak(
             segment ``[0 .. c*]`` (scaling consistently helps on the way to the
             peak; post-peak decline under over-scaling is ignored);
         (3) ``gain ≥ max(abs_floor, rel_floor · headroom)`` — the head recovers
-            at least ``rel_floor`` of the significant-set's headroom above
+            at least ``rel_floor`` of the selected-set's headroom above
             leave-one-out, **and** at least ``abs_floor`` in absolute terms. The
             absolute guard prevents near-chance drift from qualifying on tasks
-            where ``A_sig`` is tiny (so ``rel_floor · headroom`` ≈ 0).
+            where ``A_selected`` is tiny (so ``rel_floor · headroom`` ≈ 0).
 
     Heads are ordered by ``acc*`` (top accuracy across scales) descending, then
     by ``gain``, then layer/head. Returns ``(main_heads, decisions)`` with
@@ -479,7 +481,7 @@ def select_main_heads_by_recovery_weak(
     """
     main_heads: List[Tuple[int, int]] = []
     decisions: dict = {}
-    A_sig = float(full_significant_fv_acc)
+    A_selected = float(full_selected_fv_acc)
 
     for (l, h), curve in per_head_curves.items():
         cs = sorted(curve.keys(), key=lambda c: int(c))  # robust to int or str keys
@@ -494,7 +496,7 @@ def select_main_heads_by_recovery_weak(
         max_drop = max((seg[i] - seg[i + 1] for i in range(len(seg) - 1)), default=0.0)
         steady = max_drop <= eps
 
-        headroom = A_sig - acc0
+        headroom = A_selected - acc0
         bar = max(abs_floor, rel_floor * headroom) if headroom > 0 else abs_floor
         rel = (gain / headroom) if abs(headroom) > 1e-9 else float("nan")
 
@@ -514,7 +516,7 @@ def select_main_heads_by_recovery_weak(
             "acc_at_c0": acc0,
             "gain": float(gain),
             "rel_recovery": float(rel) if rel == rel else None,  # NaN→None
-            "headroom_vs_sumSig": float(headroom),
+            "headroom_vs_sumSelected": float(headroom),
             "bar": float(bar),
             "max_drop_to_peak": float(max_drop),
             "steady": bool(steady),
@@ -540,7 +542,7 @@ def select_main_heads_by_recovery_weak(
 def select_main_heads_by_recovery_weak(
     per_head_curves: dict,
     *,
-    full_significant_fv_acc: float,
+    full_selected_fv_acc: float,
     rel_floor: float = 0.2,
     abs_floor: float = 0.05,
     eps: float = 0.03,
@@ -554,10 +556,10 @@ def select_main_heads_by_recovery_weak(
     **adaptively** from two references (per the task design):
 
         * ``acc0 = acc_h(c=0)`` — the head's leave-one-out accuracy (head removed,
-          every other significant head held at its cross-task mean);
-        * ``A_sig = full_significant_fv_acc`` — accuracy of the *sum of all
-          significant heads at unit coefficient* (the full-sig-set FV). This is
-          how far the whole localized set gets; ``headroom = A_sig − acc0`` is
+          every other selected head held at its cross-task mean);
+        * ``A_selected = full_selected_fv_acc`` — accuracy of the *sum of all
+          selected heads at unit coefficient* (the full-selected-set FV). This is
+          how far the whole localized set gets; ``headroom = A_selected − acc0`` is
           the room a single head could plausibly recover.
 
     For head ``h`` with dose-response curve ``acc_h(c)`` over the scan grid:
@@ -570,19 +572,19 @@ def select_main_heads_by_recovery_weak(
             segment ``[0 .. c*]`` (scaling consistently helps on the way to the
             peak; post-peak decline under over-scaling is ignored);
         (3) ``gain ≥ max(abs_floor, rel_floor · headroom)`` — the head recovers
-            at least ``rel_floor`` of the significant-set's headroom above
+            at least ``rel_floor`` of the selected-set's headroom above
             leave-one-out, **and** at least ``abs_floor`` in absolute terms. The
             absolute guard prevents near-chance drift from qualifying on tasks
-            where ``A_sig`` is tiny (so ``rel_floor · headroom`` ≈ 0).
+            where ``A_selected`` is tiny (so ``rel_floor · headroom`` ≈ 0).
 
     Heads are ordered by ``acc*`` (top accuracy across scales) descending, then
     by ``gain``, then layer/head. Returns ``(main_heads, decisions)`` with
     ``decisions`` keyed by ``(L, H)`` (same shape contract as the strict
-    selector, plus ``rel_recovery``/``headroom_vs_sumSig``/``bar`` fields).
+    selector, plus ``rel_recovery``/``headroom_vs_sumSelected``/``bar`` fields).
     """
     main_heads: List[Tuple[int, int]] = []
     decisions: dict = {}
-    A_sig = float(full_significant_fv_acc)
+    A_selected = float(full_selected_fv_acc)
 
     for (l, h), curve in per_head_curves.items():
         cs = sorted(curve.keys(), key=lambda c: int(c))  # robust to int or str keys
@@ -597,7 +599,7 @@ def select_main_heads_by_recovery_weak(
         max_drop = max((seg[i] - seg[i + 1] for i in range(len(seg) - 1)), default=0.0)
         steady = max_drop <= eps
 
-        headroom = A_sig - acc0
+        headroom = A_selected - acc0
         bar = max(abs_floor, rel_floor * headroom) if headroom > 0 else abs_floor
         rel = (gain / headroom) if abs(headroom) > 1e-9 else float("nan")
 
@@ -617,7 +619,7 @@ def select_main_heads_by_recovery_weak(
             "acc_at_c0": acc0,
             "gain": float(gain),
             "rel_recovery": float(rel) if rel == rel else None,  # NaN→None
-            "headroom_vs_sumSig": float(headroom),
+            "headroom_vs_sumSelected": float(headroom),
             "bar": float(bar),
             "max_drop_to_peak": float(max_drop),
             "steady": bool(steady),

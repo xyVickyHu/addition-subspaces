@@ -1,5 +1,5 @@
 # AIE baseline cell — phi-4 sub family (Stage-3 M1-fam, 2026-08-07).
-# k rationale: 37 = sig-matched (largest_gap@avg3); 20 = paper-indicated.
+# k rationale: 37 = selected-matched (largest_gap@avg3); 20 = paper-indicated.
 # AIE never reads the matrix. 80GB-node pin (14B OOMs at load on 40GB).
 #   .venv/bin/python -m subspaces.runners.step1 make-samples --config <this>   # CPU
 #   sbatch -p YOUR_PARTITION -w YOUR_80GB_NODE scripts/step1_aie.sbatch <this>    # GPU
@@ -29,7 +29,7 @@ samples:
   scan: {examples_per_task: 100, seed: 42, task_set: train}
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
-significant:
+selected:
   method: largest_gap
 scan:
   c_min: 0

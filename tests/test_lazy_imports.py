@@ -62,7 +62,7 @@ def test_select_main_cli_stays_light(tmp_path):
         "paths = ProjectPaths.from_root(); "
         "scan = make_manifest(kind='head_scan', schema_version=1, paths=paths, "
         "payload={'curves': {'15:2': {'0': 0.1, '1': 0.6}}, "
-        "'baselines': {'clean_acc': 0.9, 'full_significant_acc': 0.8}, "
+        "'baselines': {'clean_acc': 0.9, 'full_selected_acc': 0.8}, "
         "'n_eval_examples_per_head_per_c': 300, 'c_grid': [0, 1]}); "
         f"write_json_atomic({str(scan_path)!r}, scan); "
         "from subspaces.runners import step1; "

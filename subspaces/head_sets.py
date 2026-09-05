@@ -4,7 +4,7 @@ Two ways to specify heads:
 
 - an explicit ``L:H`` list, e.g. ``"15:2,15:1,13:6"``;
 - a Step-1 head artifact: either the composed ``heads`` artifact (exposing
-  ``significant_heads``, ``main_heads``, and ``minor_heads``) or a selector's
+  ``selected_heads``, ``main_heads``, and ``minor_heads``) or a selector's
   ``main_heads`` artifact directly (exposing ``main_heads``/``minor_heads``
   only) — selector nodes backfilled over saved scans carry no composed
   ``heads.json``, so Steps 2/3 accept both kinds.
@@ -15,14 +15,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from subspaces.artifacts import ArtifactError
+from subspaces.artifacts import ArtifactError, modernize
 
 HEADS_SCHEMA_VERSION = 1
 MAIN_HEADS_SCHEMA_VERSION = 1
-HEAD_SET_NAMES = ("main", "significant", "minor")
+HEAD_SET_NAMES = ("main", "selected", "minor")
 # head-set availability per accepted artifact kind
 _KIND_SETS = {
-    "heads": ("main", "significant", "minor"),
+    "heads": ("main", "selected", "minor"),
     "main_heads": ("main", "minor"),
 }
 _KIND_MAX_SCHEMA = {
@@ -113,7 +113,7 @@ def resolve_heads_arg(
         return load_head_set(artifact_path, which=head_set)
     raise HeadSpecError(
         "specify heads via --heads 'L:H,...' or --heads-artifact <heads.json> "
-        "(with --head-set main|significant|minor)"
+        "(with --head-set main|selected|minor)"
     )
 
 
@@ -129,7 +129,7 @@ def read_heads_manifest(path: str | Path) -> tuple[dict, str]:
     if not manifest_path.is_file():
         raise ArtifactError(f"artifact manifest not found: {manifest_path}")
     with open(manifest_path, encoding="utf-8") as fh:
-        manifest = json.load(fh)
+        manifest = modernize(json.load(fh))
     kind = manifest.get("kind")
     if kind not in _KIND_SETS:
         raise ArtifactError(
@@ -155,7 +155,7 @@ def load_head_set(path: str | Path, which: str = "main") -> list[Head]:
         raise HeadSpecError(
             f"{path}: a {kind!r} artifact carries no {which!r} set "
             f"(available: {_KIND_SETS[kind]}); pass the composed heads.json "
-            "for significant heads."
+            "for selected heads."
         )
     key = f"{which}_heads"
     if key not in manifest:

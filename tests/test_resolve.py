@@ -51,7 +51,7 @@ def test_identity_and_validation_split(fake_paths):
     assert "revision" not in identity["requested"]["model"]
     assert identity["model_revision"] is None  # unpinned, no cache
     # v2 = largest_gap method added (intentional identity fork)
-    assert identity["algorithm_versions"]["subspaces.step1.significant"] == 2
+    assert identity["algorithm_versions"]["subspaces.step1.selected"] == 2
 
     validation = resolved["validation"]
     assert validation["model"]["status"] == "unresolved"

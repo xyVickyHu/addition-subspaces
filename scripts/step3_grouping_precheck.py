@@ -1,6 +1,6 @@
 """CPU tokenizer-only pre-validation of step-3 grouping for a set of cells.
 
-For every cell in ``configs/step23_recpos_cells.tsv`` (or ``--cells``), loads
+For every cell in ``configs/step23_significant_cells.tsv`` (or ``--cells``), loads
 the cell's step-3 context + scan samples manifest and runs the REAL grouping
 v2 math (``prompt_parts`` + ``token_group_spans_offsets`` on the HF fast
 tokenizer's offset_mapping) over every record; the v1 prefix-consistency
@@ -102,9 +102,9 @@ def check_cell(paths: ProjectPaths, context_path: Path, tokenizers: dict) -> dic
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=None)
-    parser.add_argument("--cells", default="configs/step23_recpos_cells.tsv")
+    parser.add_argument("--cells", default="configs/step23_significant_cells.tsv")
     parser.add_argument(
-        "--context-pattern", default="configs/contexts/step3_recpos_{slug}.yaml"
+        "--context-pattern", default="configs/contexts/step3_significant_{slug}.yaml"
     )
     args = parser.parse_args()
     paths = ProjectPaths.from_root(args.root)

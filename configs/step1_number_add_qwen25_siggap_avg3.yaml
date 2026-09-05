@@ -1,7 +1,7 @@
 # QWEN 100/task FULL SCAN (2026-08-04, user directive: 100/t is the
 # reporting standard; the earlier 20/task leg is legacy and its config is
 # not shipped). Same retrained-matrix prefix as that 20/task leg
-# (matrix/sig/samples green; only the scan sample spec differs -> new
+# (matrix/selected/samples green; only the scan sample spec differs -> new
 # sibling scan node in run addqwen25-avg3__9272e1b4c12c). Volume:
 # 230x21x25x100 = 12.075M zero-shot evals; the 20/task leg measured ~5.2k
 # evals/min (GPU run, 7h46m) => est ~39 h; submit with --time=60:00:00.
@@ -34,7 +34,7 @@ samples:
   scan: {examples_per_task: 100, seed: 42, task_set: train}
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
-significant:
+selected:
   method: largest_gap
 scan:
   c_min: 0

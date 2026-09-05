@@ -10,7 +10,7 @@ cross-task mean ``h_bar`` from the manifest's TRAIN z cache
     clean         no hooks; anchor against the manifest's recorded clean metric
     null_control  use_attn_result=True hook path active, nothing ablated
     main_trio     the manifest's main heads mean-ablated
-    random_##     N random size-K subsets of the OTHER significant heads
+    random_##     N random size-K subsets of the OTHER selected heads
 
 Corrected-protocol counterpart of the paper paragraph "Validating necessity
 of main heads in the five-shot setting" (paper-era numbers: trio 0.43 vs
@@ -25,7 +25,7 @@ and creates no lineage-tree artifacts.
 
 Usage (from the repo root, GPU node):
     .venv/bin/python scripts/fiveshot_necessity.py \
-        log/runs/<node>__<id>/sig-<m>-v1/scan-<tag>/main-<sel>-<h8>/eval-<h10>.json
+        log/runs/<node>__<id>/selected-<m>-v1/scan-<tag>/main-<sel>-<h8>/eval-<h10>.json
 """
 
 from __future__ import annotations
@@ -34,6 +34,8 @@ import argparse
 import json
 import subprocess
 from pathlib import Path
+
+from subspaces.artifacts import modernize
 
 PAPER_REFERENCE = {
     "paragraph": "Validating necessity of main heads in the five-shot setting",
@@ -60,7 +62,7 @@ def git_state() -> dict:
 
 
 def load_manifest_cell(manifest_path: Path) -> dict:
-    manifest = json.loads(manifest_path.read_text())
+    manifest = modernize(json.loads(manifest_path.read_text()))
     if manifest.get("kind") != "headset_eval":
         raise SystemExit(f"{manifest_path}: expected a headset_eval manifest")
     scoring = manifest["config"]["scoring"]
@@ -72,15 +74,17 @@ def load_manifest_cell(manifest_path: Path) -> dict:
     samples = json.loads(
         Path(manifest["inputs"]["final_eval_samples"]["path"]).read_text()
     )
-    sig_payload = json.loads(
-        Path(manifest["inputs"]["significant_heads"]["path"]).read_text()
+    selected_payload = modernize(
+        json.loads(Path(manifest["inputs"]["selected_heads"]["path"]).read_text())
     )
     task_cfg = samples["config"]["task"]
     return {
         "manifest_path": str(manifest_path),
         "manifest": manifest,
         "samples": samples,
-        "sig_heads": [(int(li), int(hi)) for li, hi, *_ in sig_payload["heads"]],
+        "selected_heads": [
+            (int(li), int(hi)) for li, hi, *_ in selected_payload["heads"]
+        ],
         "main_heads": [(int(li), int(hi)) for li, hi in manifest["main_heads"]],
         "batch_size": int(manifest["config"]["batch_size"]),
         "z_train_fp": manifest["inputs"]["z_cache_train"]["content_fingerprint"],
@@ -174,7 +178,7 @@ def main() -> None:
     bs = args.batch_size or cell["batch_size"]
 
     main_set = set(cell["main_heads"])
-    other_heads = [h for h in cell["sig_heads"] if h not in main_set]
+    other_heads = [h for h in cell["selected_heads"] if h not in main_set]
     random_sets = sample_head_subsets(
         other_heads, args.n_random, args.set_size, args.seed
     )
@@ -195,7 +199,7 @@ def main() -> None:
     n_prompts = sum(len(p) for p, _ in per_task_prompts.values())
     print(
         f"[cell] {cell['label']}: {n_prompts} five-shot prompts, "
-        f"mains={cell['main_heads']}, {len(other_heads)} other significant heads",
+        f"mains={cell['main_heads']}, {len(other_heads)} other selected heads",
         flush=True,
     )
 
@@ -263,7 +267,7 @@ def main() -> None:
         "z_cache_train": cell["z_train_fp"],
         "h_bar_tasks": meta_train["tasks"],
         "main_heads": [list(h) for h in cell["main_heads"]],
-        "n_significant": len(cell["sig_heads"]),
+        "n_selected_set": len(cell["selected_heads"]),
         "batch_size": bs,
         "limit_per_task": args.limit_per_task,
         "n_prompts": n_prompts,

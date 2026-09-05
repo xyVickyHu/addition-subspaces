@@ -16,5 +16,5 @@ activations:
   heldout:
     path: log/cache/z/33f9506f81a4db06
 heads_artifact:
-  path: log/runs/_legacy/mulllama-avg3__34a02c596591/sig-largest_gap-v1/scan-100x20-3830c9/main-largest_gap-v1-50a03697/main_heads.json
+  path: log/runs/_legacy/mulllama-avg3__34a02c596591/selected-largest_gap-v1/scan-100x20-3830c9/main-largest_gap-v1-50a03697/main_heads.json
   semantic_fingerprint: 7eebc8fd5ecf8be554e150e386f0e4494e6b7c276d582916d6937b6884e97ce9

@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from subspaces.artifacts import modernize
 from subspaces.step1.selectors import (
     ABOVE_ABLATION_V1_PARAMS,
     OUTCOME_SELECTORS,
@@ -45,14 +46,16 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 @pytest.fixture(scope="module")
 def scan_fixture() -> dict:
-    raw = json.loads(
-        (FIXTURES / "selector_scan_repro_v1.json").read_text(encoding="utf-8")
+    raw = modernize(
+        json.loads(
+            (FIXTURES / "selector_scan_repro_v1.json").read_text(encoding="utf-8")
+        )
     )
     return {
         "curves": raw["curves"],
         "baselines": {
             "clean_acc": raw["clean_acc"],
-            "full_significant_acc": raw["full_significant_fv_acc"],
+            "full_selected_acc": raw["full_selected_fv_acc"],
         },
         "n_eval_examples_per_head_per_c": raw["n_eval"],
         "stored_main_heads_weak_release": raw["stored_main_heads_weak_release"],
@@ -61,8 +64,10 @@ def scan_fixture() -> dict:
 
 @pytest.fixture(scope="module")
 def expected() -> dict:
-    return json.loads(
-        (FIXTURES / "selector_expected_repro_v1.json").read_text(encoding="utf-8")
+    return modernize(
+        json.loads(
+            (FIXTURES / "selector_expected_repro_v1.json").read_text(encoding="utf-8")
+        )
     )
 
 
@@ -157,7 +162,7 @@ def test_exact_tie_is_broken_deterministically():
     curve = {"0": 0.10, "1": 0.50, "2": 0.40}
     scan = {
         "curves": {"5:1": dict(curve), "3:2": dict(curve)},  # identical curves
-        "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+        "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
         "n_eval_examples_per_head_per_c": 300,
     }
     result = unified_v1(scan, UNIFIED_V1_PARAMS)
@@ -173,7 +178,7 @@ def test_sparse_and_nan_curve_points_are_deterministic():
             "1:1": {"0": 0.1, "5": 0.6},  # sparse grid
             "2:2": {"0": 0.1, "1": float("nan"), "2": 0.55},  # NaN point
         },
-        "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+        "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
         "n_eval_examples_per_head_per_c": 300,
     }
     first = unified_v1(scan, UNIFIED_V1_PARAMS)
@@ -190,7 +195,7 @@ def _peak_scan(peaks: dict[str, float]) -> dict:
     """Synthetic scan where each head's curve rises from 0.0 to its peak."""
     return {
         "curves": {key: {"0": 0.0, "1": value} for key, value in peaks.items()},
-        "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+        "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
         "n_eval_examples_per_head_per_c": 300,
     }
 
@@ -264,7 +269,7 @@ def test_largest_gap_v1_refusals():
             "1:1": {"0": float("nan"), "1": 0.2},  # NaN at c=0 peaks (legacy)
             "2:2": {"0": 0.1, "1": 0.5},
         },
-        "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+        "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
         "n_eval_examples_per_head_per_c": 300,
     }
     with pytest.raises(SelectorError, match="NaN peak"):
@@ -277,7 +282,7 @@ def test_largest_gap_v1_tolerates_nan_that_never_peaks():
             "1:1": {"0": 0.1, "1": float("nan"), "2": 0.9},
             "2:2": {"0": 0.1, "1": 0.2, "2": 0.3},
         },
-        "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+        "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
         "n_eval_examples_per_head_per_c": 300,
     }
     result = largest_gap_v1(scan, {})
@@ -381,7 +386,7 @@ def test_above_ablation_v1_orders_ties_deterministically():
     curve = {"0": 0.10, "1": 0.50, "2": 0.40}
     scan = {
         "curves": {"5:1": dict(curve), "3:2": dict(curve)},
-        "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+        "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
         "n_eval_examples_per_head_per_c": 300,
     }
     result = above_ablation_v1(scan, ABOVE_ABLATION_V1_PARAMS)
@@ -407,13 +412,13 @@ def test_above_ablation_v1_param_validation(scan_fixture):
 def test_above_ablation_v1_refusals():
     no_n_eval = {
         "curves": {"1:1": {"0": 0.1, "1": 0.5}},
-        "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+        "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
     }
     with pytest.raises(SelectorError, match="n_eval_examples_per_head_per_c"):
         above_ablation_v1(no_n_eval, ABOVE_ABLATION_V1_PARAMS)
     single_point = {
         "curves": {"1:1": {"0": 0.1}},
-        "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+        "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
         "n_eval_examples_per_head_per_c": 300,
     }
     with pytest.raises(SelectorError, match="non-zero"):
@@ -425,7 +430,7 @@ def test_above_ablation_v1_refusals():
     for grid in ({"1": 0.1, "2": 0.5}, {"-1": 0.1, "0": 0.2, "1": 0.5}):
         no_c0 = {
             "curves": {"1:1": dict(grid)},
-            "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+            "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
             "n_eval_examples_per_head_per_c": 300,
         }
         with pytest.raises(SelectorError, match="needs c=0"):
@@ -437,7 +442,7 @@ def test_above_ablation_v1_refusals():
             "1:1": {"0": float("nan"), "1": 0.2},  # NaN at c=0 peaks (legacy)
             "2:2": {"0": 0.1, "1": 0.5},
         },
-        "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+        "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
         "n_eval_examples_per_head_per_c": 300,
     }
     with pytest.raises(SelectorError, match="NaN peak"):
@@ -452,7 +457,7 @@ def test_above_ablation_v1_selects_none_when_all_peaks_at_c0():
             "1:1": {"0": 0.5, "1": 0.4},
             "2:2": {"0": 0.5, "1": 0.3},
         },
-        "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+        "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
         "n_eval_examples_per_head_per_c": 300,
     }
     result = above_ablation_v1(scan, ABOVE_ABLATION_V1_PARAMS)
@@ -498,7 +503,7 @@ def test_compare_zero_v1_orders_ties_deterministically():
     curve = {"0": 0.10, "1": 0.50, "2": 0.40}
     scan = {
         "curves": {"5:1": dict(curve), "3:2": dict(curve)},
-        "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+        "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
     }
     result = compare_zero_v1(scan, {})
     assert result.main_heads == [(3, 2), (5, 1)]
@@ -513,14 +518,14 @@ def test_compare_zero_v1_param_validation(scan_fixture):
 def test_compare_zero_v1_refusals():
     single_point = {
         "curves": {"1:1": {"0": 0.1}},
-        "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+        "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
     }
     with pytest.raises(SelectorError, match="non-zero"):
         compare_zero_v1(single_point, {})
     for grid in ({"1": 0.1, "2": 0.5}, {"-1": 0.1, "0": 0.2, "1": 0.5}):
         no_c0 = {
             "curves": {"1:1": dict(grid)},
-            "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+            "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
         }
         with pytest.raises(SelectorError, match="needs c=0"):
             compare_zero_v1(no_c0, {})
@@ -531,7 +536,7 @@ def test_compare_zero_v1_refusals():
             "1:1": {"0": float("nan"), "1": 0.2},
             "2:2": {"0": 0.1, "1": 0.5},
         },
-        "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+        "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
     }
     with pytest.raises(SelectorError, match="NaN peak"):
         compare_zero_v1(nan_scan, {})
@@ -545,7 +550,7 @@ def test_compare_zero_v1_selects_none_when_no_peak_beats_max_c0():
             "1:1": {"0": 0.5, "1": 0.4},
             "2:2": {"0": 0.1, "1": 0.45},
         },
-        "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+        "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
         "n_eval_examples_per_head_per_c": 300,
     }
     result = compare_zero_v1(scan, {})
@@ -591,7 +596,7 @@ def _paired_scan(vectors: dict[str, dict[int, list[int]]]) -> tuple[dict, dict]:
         curves[head_key] = curve
     scan = {
         "curves": curves,
-        "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+        "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
         "n_eval_examples_per_head_per_c": n_eval,
         "outcomes": {"file": "scan_outcomes.npz", "content_sha256": "f" * 64},
     }
@@ -672,7 +677,7 @@ def test_paired_bh_selects_planted_head():
     result = paired_bh_v1(scan, PAIRED_BH_V1_PARAMS, outcomes)
     assert result.main_heads == [(15, 2)]
     assert result.verdict["verdict"] == "localized"
-    assert result.verdict["n_sig"] == 3
+    assert result.verdict["n_scanned"] == 3
     assert set(result.decisions) == {"15:2", "9:9", "7:7"}
     top = result.decisions["15:2"]
     assert top["c_star"] == 1

@@ -1,6 +1,6 @@
 # n-shot axis cell (Q1, user answers 2026-07-26): n_shot=4, canonical
-# add matrix REUSED (published-E9 style — one matrix, rescan only), sig set
-# FIXED by construction (significant heads depend only on the matrix; the
+# add matrix REUSED (published-E9 style — one matrix, rescan only), selected set
+# FIXED by construction (selected heads depend only on the matrix; the
 # avg3 largest_gap 33-set == canonical elbow-33). n_shot changes the demo
 # count in n-shot prompts (clean baseline + z estimation); every FV
 # intervention still runs on the ZERO-SHOT prompt, so scan cost is
@@ -41,7 +41,7 @@ samples:
   scan: {examples_per_task: 20, seed: 42, task_set: train}
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
-significant:
+selected:
   method: largest_gap
 scan:
   c_min: 0

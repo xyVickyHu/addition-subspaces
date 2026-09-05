@@ -1,24 +1,24 @@
-"""Substep 6 — GPU evaluation of a selected head set (selector-dependent).
+"""Substep 6 — GPU evaluation of a main selection's head sets (selector-dependent).
 
 Under the corrected protocol this is the ONLY substep that touches the five
 held-out tasks: it consumes the held-out activation cache (task-conditioned z
 for the held-out tasks, prompts distinct from evaluation via a distinct seed)
 and the held-out final-evaluation samples, produced only after selection.
 
-Selected-set intervention (legacy math): for each held-out task ``t``
+Main-plus-mean-ablation intervention (legacy math): for each held-out task ``t``
 
-    FV(t) = sum_{h in main} z_heldout[t][h] + sum_{h in sig \\ main} mean_z_train[h]
+    FV(t) = sum_{h in main} z_heldout[t][h] + sum_{h in selected \\ main} mean_z_train[h]
 
-evaluated on the final-evaluation prompts, alongside clean, full-significant
+evaluated on the final-evaluation prompts, alongside clean, full-selected
 (held-out z, unit coefficients), and the raw training-time function vector
 (``sum_{l,h in all heads} M_final[l,h] * z_heldout[t][l,h]``) on the SAME
 prompts. ``M_final`` always comes from the final epoch checkpoint, even when
-significant-head selection used a trailing-checkpoint mean. mean_z_train is
+selected-head extraction used a trailing-checkpoint mean. mean_z_train is
 TRAIN-ONLY (from the selection activation cache). Every listed example is
 evaluated; effective batch sizes recorded.
 
 Artifact (kind ``headset_eval``): metrics + per-task breakdown + references
-to main/significant/matrix artifacts, sample manifests, and both caches; the
+to main/selected/matrix artifacts, sample manifests, and both caches; the
 per-example outcomes live in a sibling npz referenced by the manifest.
 """
 
@@ -33,7 +33,7 @@ from subspaces.step1.recovery import outcomes_content_sha
 
 HEADSET_EVAL_SCHEMA_VERSION = 1
 # v4: raw_coef is the all-head FV weighted by the FINAL checkpoint, rather
-# than v3's significant-only FV weighted by the selection checkpoint.
+# than v3's selected-only FV weighted by the selection checkpoint.
 IMPL = {"module": "subspaces.step1.headset_eval", "algorithm_version": 4}
 
 # The optional projected arm (``proj_meanab``) is its own versioned estimator
@@ -131,7 +131,7 @@ def _fit_head_projector(x, head_key: str, artifact_entry: dict, threshold=None):
 def projected_headset_vectors(
     subspace: dict, train_z: dict, z_heldout: dict, selected: list, eval_tasks: list
 ) -> tuple[dict, dict]:
-    """Per-held-out-task sum of the selected heads' PROJECTED task vectors.
+    """Per-held-out-task sum of the evaluated heads' PROJECTED task vectors.
 
     Paper §4 causal-projection convention per head: subtract the head's
     across-task mean, project onto the top-k PC subspace, re-center
@@ -147,7 +147,7 @@ def projected_headset_vectors(
 
     if not selected:
         raise ArtifactError(
-            "the projected arm needs a non-empty selected head set; an empty "
+            "the projected arm needs a non-empty evaluated head set; an empty "
             "selection has no projected sum (refusing rather than degrading "
             "to the mean-term-only vector)."
         )
@@ -173,7 +173,7 @@ def projected_headset_vectors(
         entry = per_head.get(key)
         if entry is None:
             raise ArtifactError(
-                f"step2_subspace artifact has no PCA entry for selected head "
+                f"step2_subspace artifact has no PCA entry for evaluated head "
                 f"{key}; recompute step 2 over the full selected set."
             )
         x = (
@@ -216,7 +216,7 @@ def all_head_raw_coef_vector(matrix, z):
 
 def evaluate_headset(
     main_heads: dict,
-    significant: dict,
+    selected: dict,
     matrix_ref: dict,
     train_mean_z,
     heldout_activation_cache: dict,
@@ -232,7 +232,7 @@ def evaluate_headset(
     subspace: dict | None = None,
     train_z: dict | None = None,
 ) -> dict:
-    """Evaluate the selected set; returns the ``headset_eval`` manifest.
+    """Evaluate a main selection's head sets; returns the ``headset_eval`` manifest.
 
     ``artifact_stem`` (complete identity hash) names BOTH the manifest and its
     outcomes npz, so variants never clobber each other's outcome files.
@@ -250,8 +250,8 @@ def evaluate_headset(
         require_resolved_model,
     )
 
-    if significant is None or matrix_ref is None:
-        raise ArtifactError("evaluate-headset requires significant + matrix refs")
+    if selected is None or matrix_ref is None:
+        raise ArtifactError("evaluate-headset requires selected + matrix refs")
     if not heldout_activation_cache or not final_eval_samples:
         raise ArtifactError(
             "evaluate-headset requires the held-out activation cache and the "
@@ -265,9 +265,8 @@ def evaluate_headset(
     if missing:
         raise ArtifactError(f"held-out activation cache lacks z for: {missing}")
 
-    sig_heads = [
-        (int(layer_idx), int(head_idx))
-        for layer_idx, head_idx, *_ in significant["heads"]
+    selected_heads = [
+        (int(layer_idx), int(head_idx)) for layer_idx, head_idx, *_ in selected["heads"]
     ]
     raw_checkpoint_ref = inputs_refs.get("raw_coef_checkpoint")
     if not raw_checkpoint_ref:
@@ -285,11 +284,11 @@ def evaluate_headset(
             f"raw_coef final checkpoint {raw_checkpoint} did not contain a Tensor"
         )
     raw_matrix = raw_matrix.detach().cpu()
-    selected = [
+    main_set = [
         (int(layer_idx), int(head_idx))
         for layer_idx, head_idx in main_heads["main_heads"]
     ]
-    not_selected = [head for head in sig_heads if head not in selected]
+    others = [head for head in selected_heads if head not in main_set]
     layer_name = cfg.sites.inject_layer
     batch_size = effective_batch_size(cfg)
 
@@ -302,13 +301,11 @@ def evaluate_headset(
                 "rows; pass train_z alongside subspace."
             )
         projected_vectors, per_head_k = projected_headset_vectors(
-            subspace, train_z, z_heldout, selected, task_order
+            subspace, train_z, z_heldout, main_set, task_order
         )
 
     model = model_loader()
-    mean_term = sum(
-        train_mean_z[layer_idx, head_idx] for layer_idx, head_idx in not_selected
-    )
+    mean_term = sum(train_mean_z[layer_idx, head_idx] for layer_idx, head_idx in others)
     # float32 twin for the projected arm (its per-head math is float32; the
     # unprojected arms keep the legacy bf16 accumulation).
     mean_term_f32 = (
@@ -317,7 +314,7 @@ def evaluate_headset(
 
     outcomes: dict[str, list[int]] = {
         "clean": [],
-        "full_sig": [],
+        "full_selected": [],
         "raw_coef": [],
         "main_meanab": [],
     }
@@ -331,13 +328,13 @@ def evaluate_headset(
         zeroshot = manifest_prompts(final_eval_samples, task, zero_shot=True)
         vectors = {
             "clean": None,
-            "full_sig": sum(
+            "full_selected": sum(
                 z_heldout[task][layer_idx, head_idx]
-                for layer_idx, head_idx in sig_heads
+                for layer_idx, head_idx in selected_heads
             ),
             "raw_coef": all_head_raw_coef_vector(raw_matrix, z_heldout[task]),
             "main_meanab": sum(
-                z_heldout[task][layer_idx, head_idx] for layer_idx, head_idx in selected
+                z_heldout[task][layer_idx, head_idx] for layer_idx, head_idx in main_set
             )
             + mean_term,
         }
@@ -395,8 +392,8 @@ def evaluate_headset(
         payload={
             "impl": IMPL,
             "protocol": cfg.protocol,
-            "main_heads": [list(head) for head in selected],
-            "n_significant": len(sig_heads),
+            "main_heads": [list(head) for head in main_set],
+            "n_selected_set": len(selected_heads),
             "n_raw_coef_heads": int(raw_matrix.numel()),
             **({"projection": payload_projection} if payload_projection else {}),
             "metrics": metrics,

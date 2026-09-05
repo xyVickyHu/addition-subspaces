@@ -122,7 +122,7 @@ def test_projection_refusals():
     heads = [(1, 1)]
     subspace = _subspace_for(train_z, heldout_z, heads)
 
-    # selected head with no PCA entry
+    # evaluated head with no PCA entry
     with pytest.raises(ArtifactError, match="no PCA entry"):
         projected_headset_vectors(subspace, train_z, heldout_z, [(3, 3)], ["e1"])
 
@@ -160,7 +160,7 @@ def test_projection_refusals():
         projected_headset_vectors(broken, train_z, heldout_z, heads, ["e1"])
 
     # empty selection must refuse, never degrade to a NaN vector
-    with pytest.raises(ArtifactError, match="non-empty selected head set"):
+    with pytest.raises(ArtifactError, match="non-empty evaluated head set"):
         projected_headset_vectors(subspace, train_z, heldout_z, [], ["e1"])
 
     # payload k inconsistent with the recorded threshold+curve (tamper check)
@@ -241,7 +241,7 @@ def test_projected_arm_e2e_identity_fork_and_baseline_equality(fake_repo, gpu_st
 
     journal_dir, split, resolved = pipeline.ensure_run(cfg, paths)
     matrix_ref, matrix_node = pipeline.stage_matrix(cfg, paths, journal_dir)
-    significant, sig_node = pipeline.stage_significant(
+    selected, selected_node = pipeline.stage_selected(
         cfg, paths, matrix_node, matrix_ref
     )
     samples = pipeline.stage_selection_samples(cfg, paths, split)
@@ -251,9 +251,9 @@ def test_projected_arm_e2e_identity_fork_and_baseline_equality(fake_repo, gpu_st
         paths,
         split,
         matrix_node,
-        sig_node,
+        selected_node,
         scan_node,
-        significant,
+        selected,
         matrix_ref,
         main_manifest,
         main_node,
@@ -280,7 +280,7 @@ def test_projected_arm_e2e_identity_fork_and_baseline_equality(fake_repo, gpu_st
     assert untouched == baseline
 
     # set-independent arms must reproduce the plain eval bit-exactly
-    for arm in ("clean", "full_sig", "raw_coef", "main_meanab"):
+    for arm in ("clean", "full_selected", "raw_coef", "main_meanab"):
         assert manifest["metrics"][arm] == baseline["metrics"][arm]
 
     # reuse: an identical re-request returns the SAME manifest, no rerun
@@ -289,9 +289,9 @@ def test_projected_arm_e2e_identity_fork_and_baseline_equality(fake_repo, gpu_st
         paths,
         split,
         matrix_node,
-        sig_node,
+        selected_node,
         scan_node,
-        significant,
+        selected,
         matrix_ref,
         main_manifest,
         main_node,
@@ -319,7 +319,7 @@ def test_projected_arm_refuses_foreign_fit_set_and_uncovered_heads(
     def _stage(subspace_path):
         journal_dir, split, resolved = pipeline.ensure_run(cfg, paths)
         matrix_ref, matrix_node = pipeline.stage_matrix(cfg, paths, journal_dir)
-        significant, sig_node = pipeline.stage_significant(
+        selected, selected_node = pipeline.stage_selected(
             cfg, paths, matrix_node, matrix_ref
         )
         samples = pipeline.stage_selection_samples(cfg, paths, split)
@@ -328,9 +328,9 @@ def test_projected_arm_refuses_foreign_fit_set_and_uncovered_heads(
             paths,
             split,
             matrix_node,
-            sig_node,
+            selected_node,
             paths.resolve(summary["nodes"]["scan"]),
-            significant,
+            selected,
             matrix_ref,
             main_manifest,
             main_node,

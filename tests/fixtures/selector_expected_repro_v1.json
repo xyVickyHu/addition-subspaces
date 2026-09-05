@@ -1724,8 +1724,8 @@
   },
   "release_heads_py": {
    "file": "subspaces/utils/heads.py",
-   "note": "both shadowed weak defs share one body; parameters passed explicitly",
-   "sha256": "25d8a71aa1e45809a6f27605cfa81d1785696f7d3a5d34931b3654237dc7405d"
+   "note": "both shadowed weak defs share one body; parameters passed explicitly; re-pinned 2026-09-04 after the head-set terminology rename (identifier/docstring edits only; numerics are pinned by the Lane-A equivalence tests)",
+   "sha256": "e9ed7b2ce3038c6b7a58e78258688375679dfaffe8bf284ab1f0b2b1749ddc58"
   }
  }
 }

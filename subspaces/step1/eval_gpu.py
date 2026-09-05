@@ -1,6 +1,6 @@
 """GPU evaluation primitives: LEGACY numerics driven by manifest prompts.
 
-Design rule (same as the significant substep): the numerical model code is
+Design rule (same as the selected substep): the numerical model code is
 REUSED from the legacy package (``subspaces.utils.intervene`` /
 ``subspaces.utils.model``) — zero drift by construction — while everything around
 it is new: prompts come exclusively from sample manifests (never internal

@@ -1,13 +1,13 @@
 """Step-1 CLI. Argparse only — computation lives in ``subspaces.step1.*``.
 
 Substep boundaries (each consumes the persisted artifact of the previous one;
-artifacts live in the lineage tree ``log/runs/<node>__<id12>/sig-*/scan-*/main-*``
+artifacts live in the lineage tree ``log/runs/<node>__<id12>/selected-*/scan-*/main-*``
 and per-invocation config records in ``log/journal/<run_name>__<jhash12>/``):
 
     python -m subspaces.runners.step1 train              --config <yaml>
-    python -m subspaces.runners.step1 select-significant --config <yaml> [--matrix <dir|matrix_ref.json>]
+    python -m subspaces.runners.step1 extract-selected --config <yaml> [--matrix <dir|matrix_ref.json>]
     python -m subspaces.runners.step1 make-samples       --config <yaml>
-    python -m subspaces.runners.step1 scan               --config <yaml> [--significant <json>]
+    python -m subspaces.runners.step1 scan               --config <yaml> [--selected <json>]
     python -m subspaces.runners.step1 select-main        --scan <head_scan.json>
                                                   --selector <name> [--selector-version N]
                                                   [--param k=v ...] [--pin-heads 'L:H,...']
@@ -15,12 +15,12 @@ and per-invocation config records in ``log/journal/<run_name>__<jhash12>/``):
     python -m subspaces.runners.step1 run                --config <yaml>
     python -m subspaces.runners.step1 aie                --config <yaml> [--methods m1,m2] [--k 20,33]
 
-Changing the significant method never retrains the matrix (sibling ``sig-*``
+Changing the selected-set method never retrains the matrix (sibling ``selected-*``
 nodes share the matrix node); changing the main selector never reruns the GPU
 scan (``select-main`` is pure CPU; sibling ``main-*`` nodes share their scan);
 only ``evaluate-headset`` reruns the model for a new selector. The ``aie``
 subcommand runs the parallel AIE-baseline chain (subspaces/step1/aie.py) end to end,
-resumable — it never touches the sig/scan/main lineage.
+resumable — it never touches the selected/scan/main lineage.
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     with_config(sub.add_parser("train", help="train the coefficient matrix"))
     p = with_config(
-        sub.add_parser("select-significant", help="significant heads from the matrix")
+        sub.add_parser("extract-selected", help="selected heads from the matrix")
     )
     p.add_argument(
         "--matrix",
@@ -72,9 +72,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     with_config(sub.add_parser("make-samples", help="materialize sample manifests"))
     p = with_config(sub.add_parser("scan", help="per-head recovery scan (GPU)"))
-    p.add_argument(
-        "--significant", default=None, help="significant_heads.json artifact"
-    )
+    p.add_argument("--selected", default=None, help="selected_heads.json artifact")
     p = sub.add_parser("select-main", help="apply a main-head selector (pure CPU)")
     p.add_argument("--scan", required=True, help="head_scan.json")
     p.add_argument("--selector", required=True, help="selector name (e.g. unified)")
@@ -96,7 +94,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="parent for the main-* node dir (default: the scan's directory)",
     )
     p = with_config(
-        sub.add_parser("evaluate-headset", help="evaluate selected set (GPU)")
+        sub.add_parser(
+            "evaluate-headset", help="evaluate the head sets of a main selection (GPU)"
+        )
     )
     p.add_argument("--main", required=True, help="main_heads.json artifact")
     p.add_argument(
@@ -128,7 +128,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser(
         "compose", help="compose the heads artifact (validates lineage, CPU)"
     )
-    p.add_argument("--significant", required=True, help="significant_heads.json")
+    p.add_argument("--selected", required=True, help="selected_heads.json")
     p.add_argument("--main", required=True, help="main_heads.json artifact")
     p.add_argument("--out-dir", default=None, help="default: alongside the main")
     with_config(sub.add_parser("run", help="composed run of all substeps"))
@@ -252,7 +252,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             out_dir = paths.resolve(args.out_dir) if args.out_dir else main_path.parent
             pipeline.compose_heads(
-                significant_path=paths.resolve(args.significant),
+                selected_path=paths.resolve(args.selected),
                 main_path=main_path,
                 paths=paths,
                 out_dir=out_dir,
@@ -282,7 +282,7 @@ def main(argv: list[str] | None = None) -> int:
         # wrapper cannot silently override the recorded config.
         if not os.environ.get("FV_PROMPT_FORMAT"):
             os.environ["FV_PROMPT_FORMAT"] = cfg.task.prompt_format
-        if args.command == "select-significant" and args.matrix:
+        if args.command == "extract-selected" and args.matrix:
             cfg.matrix = _matrix_override(args.matrix, cfg.matrix, paths)
         if args.command == "aie" and cfg.aie is None:
             # refuse BEFORE ensure_run creates any journal record
@@ -300,46 +300,46 @@ def main(argv: list[str] | None = None) -> int:
             # through the stage so ref-writing/reuse rules apply to training too
             _, matrix_node = pipeline.stage_matrix(cfg, paths, journal_dir)
             print(f"[step1 train] node: {matrix_node}")
-        elif args.command == "select-significant":
+        elif args.command == "extract-selected":
             matrix_ref, matrix_node = pipeline.stage_matrix(cfg, paths, journal_dir)
-            _, sig_node = pipeline.stage_significant(
+            _, selected_node = pipeline.stage_selected(
                 cfg, paths, matrix_node, matrix_ref
             )
-            print(f"[step1 select-significant] node: {sig_node}")
+            print(f"[step1 extract-selected] node: {selected_node}")
         elif args.command == "make-samples":
             samples = pipeline.stage_selection_samples(cfg, paths, split)
             for kind, (_, path) in samples.items():
                 print(f"[step1 make-samples] {kind}: {path}")
         elif args.command == "scan":
             from subspaces.artifacts import read_manifest
-            from subspaces.step1.significant import SIGNIFICANT_SCHEMA_VERSION
+            from subspaces.step1.selected import SELECTED_SCHEMA_VERSION
 
             matrix_ref, matrix_node = pipeline.stage_matrix(cfg, paths, journal_dir)
-            if args.significant:
+            if args.selected:
                 from subspaces.artifacts import semantic_fingerprint
 
-                significant_path = paths.resolve(args.significant)
-                significant = read_manifest(
-                    significant_path,
-                    expect_kind="significant_heads",
-                    max_schema_version=SIGNIFICANT_SCHEMA_VERSION,
+                selected_path = paths.resolve(args.selected)
+                selected = read_manifest(
+                    selected_path,
+                    expect_kind="selected_heads",
+                    max_schema_version=SELECTED_SCHEMA_VERSION,
                 )
-                sig_matrix_ref = (significant.get("inputs") or {}).get("matrix_ref")
+                selected_matrix_ref = (selected.get("inputs") or {}).get("matrix_ref")
                 matrix_fp = semantic_fingerprint(matrix_ref)
                 if (
-                    not sig_matrix_ref
-                    or sig_matrix_ref.get("semantic_fingerprint") != matrix_fp
+                    not selected_matrix_ref
+                    or selected_matrix_ref.get("semantic_fingerprint") != matrix_fp
                 ):
                     raise ArtifactError(
-                        "--significant artifact does not descend from this "
+                        "--selected artifact does not descend from this "
                         "run's matrix (fingerprint mismatch); refusing to scan "
                         "a foreign head list."
                     )
-                significant, sig_node = pipeline.adopt_significant(
-                    matrix_node, significant_path, significant, paths
+                selected, selected_node = pipeline.adopt_selected(
+                    matrix_node, selected_path, selected, paths
                 )
             else:
-                significant, sig_node = pipeline.stage_significant(
+                selected, selected_node = pipeline.stage_selected(
                     cfg, paths, matrix_node, matrix_ref
                 )
             samples = pipeline.stage_selection_samples(cfg, paths, split)
@@ -347,8 +347,8 @@ def main(argv: list[str] | None = None) -> int:
             _, scan_node = pipeline.stage_scan(
                 cfg,
                 paths,
-                sig_node,
-                significant,
+                selected_node,
+                selected,
                 samples["activation"],
                 samples["scan"],
                 resolved,
@@ -392,15 +392,15 @@ def main(argv: list[str] | None = None) -> int:
                 max_schema_version=MAIN_HEADS_SCHEMA_VERSION,
             )
             matrix_ref, matrix_node = pipeline.stage_matrix(cfg, paths, journal_dir)
-            significant, sig_node = pipeline.stage_significant(
+            selected, selected_node = pipeline.stage_selected(
                 cfg, paths, matrix_node, matrix_ref
             )
             samples = pipeline.stage_selection_samples(cfg, paths, split)
             expected_scan = pipeline._scan_expected_identity(
                 cfg,
                 paths,
-                sig_node / "significant_heads.json",
-                significant,
+                selected_node / "selected_heads.json",
+                selected,
                 samples["activation"][0],
                 samples["scan"][0],
                 samples["scan"][1],
@@ -408,16 +408,16 @@ def main(argv: list[str] | None = None) -> int:
             )
             from subspaces.step1 import tree
 
-            scan_node = tree.scan_node_dir(sig_node, cfg, expected_scan)
+            scan_node = tree.scan_node_dir(selected_node, cfg, expected_scan)
             model_loader = pipeline.make_model_loader(cfg, resolved)
             pipeline.stage_evaluate_headset(
                 cfg,
                 paths,
                 split,
                 matrix_node,
-                sig_node,
+                selected_node,
                 scan_node,
-                significant,
+                selected,
                 matrix_ref,
                 main_manifest,
                 main_path.parent,

@@ -18,7 +18,7 @@ fits, causal subspace projection) are optional plugins and are NOT implemented
 here.
 
 Methods are a registry keyed by ``(name, version)`` (the
-``subspaces/step1/significant.py`` pattern): the module-level ``algorithm_version``
+``subspaces/step1/selected.py`` pattern): the module-level ``algorithm_version``
 is the shared-engine version, and each method's own ``(name, version)`` rides
 in artifact identity via ``impl_for``. NOTE: this engine is deliberately NOT
 registered in ``subspaces/step1/resolve.py::algorithm_versions()`` — that dict is
@@ -36,6 +36,7 @@ from subspaces.artifacts import (
     identity_of,
     make_manifest,
     manifest_ref,
+    modernize,
     reuse_or_refuse,
     write_json_atomic,
 )
@@ -48,7 +49,7 @@ ENGINE_VERSION = 1
 IMPL = {"module": "subspaces.step2.pca", "algorithm_version": ENGINE_VERSION}
 
 # Exact parameter schemas per (name, version) — mirrors
-# subspaces/step1/significant.py::METHOD_PARAM_SCHEMAS.
+# subspaces/step1/selected.py::METHOD_PARAM_SCHEMAS.
 METHOD_PARAM_SCHEMAS: dict[tuple[str, int], frozenset[str]] = {
     ("cumvar_threshold", 1): frozenset({"threshold"}),
 }
@@ -110,7 +111,7 @@ def samples_protocol_index(paths: ProjectPaths) -> dict[str, dict]:
     for candidate in sorted(paths.samples_cache_dir.glob("*/*.json")):
         try:
             with open(candidate, encoding="utf-8") as fh:
-                manifest = json.load(fh)
+                manifest = modernize(json.load(fh))
         except (OSError, json.JSONDecodeError):
             continue
         config = manifest.get("config") or {}

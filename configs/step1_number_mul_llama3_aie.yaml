@@ -1,7 +1,7 @@
 # AIE baseline cell — number_mul / Llama-3 (clone of
 # step1_number_mul_llama3_siggap_avg3.yaml; matrix section kept verbatim so
 # validation/resolution pass — the aie stage never reads the matrix).
-# k rationale: 37 = sig-matched (largest_gap@avg3 significant count);
+# k rationale: 37 = selected-matched (largest_gap@avg3 selected count);
 # 20 = paper-indicated (~2% of the 1024-head grid, Todd et al. footnote 1).
 # Validity overlay (Q7): held-out mul19/mul23 are dead tasks (clean <=0.08
 # historically) — reported per-task, not excluded.
@@ -33,7 +33,7 @@ samples:
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
   aie_corrupted: {examples_per_task: 25, seed: 42, task_set: train}
-significant:
+selected:
   method: largest_gap
 scan:
   c_min: 0

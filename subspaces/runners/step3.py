@@ -5,7 +5,7 @@
 
     # token-group FV-share decomposition for the largest_gap MAIN heads
     python -m subspaces.runners.step3 \\
-        --heads-artifact log/runs/<node>__<id>/sig-<m>-v1/scan-<tag>/main-largest_gap-v1-<h8>/heads.json \\
+        --heads-artifact log/runs/<node>__<id>/selected-<m>-v1/scan-<tag>/main-largest_gap-v1-<h8>/heads.json \\
         --head-set main --context configs/contexts/<context>.yaml
 
 Execution requires ``--context`` (model, task protocol, sample manifest,
@@ -32,7 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--heads", default=None, help="explicit 'L:H,L:H,...' list")
     parser.add_argument("--heads-artifact", default=None, help="Step-1 heads.json")
     parser.add_argument(
-        "--head-set", default="main", choices=("main", "significant", "minor")
+        "--head-set", default="main", choices=("main", "selected", "minor")
     )
     parser.add_argument(
         "--context",

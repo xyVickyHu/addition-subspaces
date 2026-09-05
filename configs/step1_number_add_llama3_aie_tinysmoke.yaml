@@ -34,7 +34,7 @@ samples:
   heldout_activation: {examples_per_task: 2, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 2, seed: 42, task_set: eval}
   aie_corrupted: {examples_per_task: 3, seed: 42, task_set: train}
-significant:
+selected:
   method: elbow
 scan:
   c_min: 0

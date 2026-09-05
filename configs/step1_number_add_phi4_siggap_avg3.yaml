@@ -8,11 +8,11 @@
 # committed split — so NO override_provenance is needed and the
 # split-provenance guard passes on its own.
 # Historical (withdrawn, ported-matrix) reference numbers for orientation
-# only: 23 gap sig heads, unified main (18,12),(18,14),(17,23), held-out
-# clean 0.928 / full_sig 0.910 / raw 0.966.
+# only: 23 gap selected heads, unified main (18,12),(18,14),(17,23), held-out
+# clean 0.928 / full_selected 0.910 / raw 0.966.
 # Site blocks.12.hook_resid_mid per configs/model_profiles.yaml (40 layers,
 # 40 heads). 80GB-node pin: phi-4 (14B) OOMs at model load on 40GB A100s.
-#   .venv/bin/python -m subspaces.runners.step1 select-significant --config <this>
+#   .venv/bin/python -m subspaces.runners.step1 extract-selected --config <this>
 #   .venv/bin/python -m subspaces.runners.step1 make-samples      --config <this>
 #   sbatch -p YOUR_PARTITION -w YOUR_80GB_NODE --time=24:00:00 \
 #     scripts/step1_run.sbatch <this>
@@ -41,7 +41,7 @@ samples:
   scan: {examples_per_task: 100, seed: 42, task_set: train}
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
-significant:
+selected:
   method: largest_gap
 scan:
   c_min: 0

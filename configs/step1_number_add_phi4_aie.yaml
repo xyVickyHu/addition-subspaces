@@ -3,7 +3,7 @@
 # 2026-07-27 for a split mismatch and retrained on the committed split, job
 # an earlier GPU run). AIE never reads the matrix, so this cell does NOT wait on the
 # phi-4 recovery scan (GPU run) — it only needs k. k rationale: 23 =
-# sig-matched (largest_gap@avg3 on the retrained matrix, node
+# selected-matched (largest_gap@avg3 on the retrained matrix, node
 # addphi4-avg3__5469d5a838d5: 23 heads at tau 0.42677, a 3.4x-margin cut);
 # 20 = paper-indicated (~2% of the 1600-head grid here, so if anything
 # generous relative to the llama cells).
@@ -37,7 +37,7 @@ samples:
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
   aie_corrupted: {examples_per_task: 25, seed: 42, task_set: train}
-significant:
+selected:
   method: largest_gap
 scan:
   c_min: 0

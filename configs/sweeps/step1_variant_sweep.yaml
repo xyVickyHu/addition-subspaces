@@ -53,7 +53,7 @@ runs:
     stage: 1
     axis: n_shot
     # Q1 RESOLVED 2026-07-26: n in {1..10}, REUSE the canonical 5-shot
-    # matrix (avg3 node), rescan only; sig set fixed by construction.
+    # matrix (avg3 node), rescan only; selected set fixed by construction.
     # Per cell: composed run (scan 20/task per Q8 + unified eval), then CPU
     # largest_gap main selection + follow-up evals for differing sets +
     # pin-v1 trio (ORIGINAL 5-shot main heads) on the n-shot cache.
@@ -86,7 +86,7 @@ runs:
     gpu: {gres: "gpu:A100:1", nodelist: YOUR_80GB_NODE, time: "24:00:00"}  # 80GB A100 node (phi-4 OOMs on 40GB)
     est_gpu_hours: null  # 300-epoch recipe; measures qwen train+scan cost
     depends_on: []
-    status: ready(train leg; scan leg gated by Q5 sig-count check on the trained matrix)
+    status: ready(train leg; scan leg gated by Q5 selected-count check on the trained matrix)
   - id: P-T1
     stage: 1
     axis: family
@@ -108,7 +108,7 @@ runs:
   - id: DUAL-METHOD
     stage: cross-cutting
     note: >-
-      user directive 2026-07-23 — every variant runs BOTH significant
+      user directive 2026-07-23 — every variant runs BOTH selected
       methods (elbow at the final checkpoint + largest_gap at mean-last-3
       DEFAULT, pending confirmation) with per-method main selection and
       headset eval; ~2x scan+headset GPU per cell. Gap-arm GPU pilot is
@@ -135,7 +135,7 @@ runs:
     # normalized_exact v1) once the scorer pilot passes; Q7: validity
     # overlay on historical splits (mul19/mul23 dead tasks; abstractive
     # validity-failed tasks; present-past.json[110] empty target).
-    # Selection: largest_gap sig (mean-last-3) + largest_gap main DEFAULT,
+    # Selection: largest_gap selected (mean-last-3) + largest_gap main DEFAULT,
     # unified-v1 side-by-side.
     est_gpu_hours_each: 5
     depends_on: [P-T1]
@@ -153,7 +153,7 @@ runs:
     model: Qwen/Qwen2.5-7B
     values: ["number_add[-30,0]_[1,100]", number_mul, extractive, abstractive]
     depends_on: [P-M2t]
-    status: blocked(P-M2t pass + Q5 sig-count check + matrix ports)
+    status: blocked(P-M2t pass + Q5 selected-count check + matrix ports)
   - id: M3
     stage: 3
     axis: model

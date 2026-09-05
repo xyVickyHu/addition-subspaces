@@ -3,7 +3,7 @@
 # so validation/resolution pass — the aie stage never reads the matrix; the
 # reuse_path points at the retrained node under log/runs/, present in the
 # main checkout's tree).
-# k rationale: 230 = sig-matched (largest_gap@mean-last-3 significant count
+# k rationale: 230 = selected-matched (largest_gap@mean-last-3 selected count
 # of the retrained qwen matrix); 16 = paper-indicated (Todd et al.
 # footnote 1 proportionality: 28x28 = 784 heads, ~2%).
 # etm v1 scorer caveat applies (digit-split tokenizer: unit-coefficient
@@ -37,7 +37,7 @@ samples:
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
   aie_corrupted: {examples_per_task: 25, seed: 42, task_set: train}
-significant:
+selected:
   method: largest_gap
 scan:
   c_min: 0

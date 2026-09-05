@@ -18,7 +18,7 @@ Input contract
 --------------
 - heads: an explicit ``L:H`` list OR a Step-1 head artifact — the composed
   ``heads.json`` or a selector's ``main_heads.json``
-  (``--heads-artifact ... --head-set main|significant|minor``);
+  (``--heads-artifact ... --head-set main|selected|minor``);
 - activations: one or more fingerprinted z caches under ``log/cache/z/``
   (CLI ``--z-cache`` refs override ``context.activations``); merged caches
   must share model/dataset/hook identity and cover disjoint task sets;

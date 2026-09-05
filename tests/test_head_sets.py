@@ -46,7 +46,7 @@ def _write_heads_artifact(fake_paths, tmp_path):
         schema_version=1,
         paths=fake_paths,
         payload={
-            "significant_heads": [[15, 2], [15, 1], [13, 6], [10, 0]],
+            "selected_heads": [[15, 2], [15, 1], [13, 6], [10, 0]],
             "main_heads": [[15, 2], [15, 1], [13, 6]],
             "minor_heads": [[15, 28]],
             "model_dims": {"n_layers": 32, "n_heads": 32},
@@ -61,7 +61,7 @@ def test_load_head_set_all_sets(fake_paths, tmp_path):
     path = _write_heads_artifact(fake_paths, tmp_path)
     assert load_head_set(path, "main") == [(15, 2), (15, 1), (13, 6)]
     assert load_head_set(path, "minor") == [(15, 28)]
-    assert len(load_head_set(path, "significant")) == 4
+    assert len(load_head_set(path, "selected")) == 4
     with pytest.raises(HeadSpecError, match="which must be one of"):
         load_head_set(path, "all")
 

@@ -1,0 +1,20 @@
+schema_version: 1
+model:
+  name: meta-llama/Meta-Llama-3-8B-Instruct
+  revision: 8afb486c1db24fe5011ec46dfbe5b5dccdb575c2
+  dtype: bfloat16
+task:
+  family: extractive
+  prompt_format: arrow
+  n_shot: 5
+samples:
+  activation:
+    path: log/cache/samples/e58ce3d30274b7c7/activation.json
+activations:
+  train:
+    path: log/cache/z/4de85b9fddf69f76
+  heldout:
+    path: log/cache/z/f7469cbc41e4cc55
+heads_artifact:
+  path: log/runs/extrllama-avg3__85afc292a5d9/selected-largest_gap-v1/scan-100x20-d6b0e3/significant-paired_bh-v1-9054f5f6/main_heads.json
+  semantic_fingerprint: 037650129cd55a78bd5837cd0435a5ae9fe8b547adb1efe4114aebb167523cab

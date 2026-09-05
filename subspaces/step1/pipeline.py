@@ -4,7 +4,7 @@ Artifacts live in the LINEAGE TREE (``subspaces.step1.tree``, output layout v2):
 each substep's output sits under its primary parent, and method/protocol
 variants are prefix-named sibling directories —
 
-    log/runs/<node>__<ckptid12>/sig-*/scan-*/main-*/
+    log/runs/<node>__<ckptid12>/selected-*/scan-*/main-*/
 
 The composed runner executes the substeps in order, reusing an existing
 node artifact only after validating its input/config/impl identity (the
@@ -14,7 +14,7 @@ config records (requested/resolved + node pointers) land in
 ``log/journal/<run_name>__<jhash12>/``.
 
 The final ``heads`` artifact (kind ``heads``, ``<main-node>/heads.json``)
-is the stable input for Steps 2/3: it exposes ``significant_heads``,
+is the stable input for Steps 2/3: it exposes ``selected_heads``,
 ``main_heads``, and ``minor_heads`` plus references to the artifacts it was
 derived from. Consumers never parse a journal record, and per-example scan
 outcomes are NOT exposed here.
@@ -34,6 +34,7 @@ from subspaces.artifacts import (
     identity_of,
     make_manifest,
     manifest_ref,
+    modernize,
     read_manifest,
     reuse_or_refuse,
     semantic_fingerprint,
@@ -44,12 +45,12 @@ from subspaces.head_sets import HEADS_SCHEMA_VERSION
 from subspaces.paths import ProjectPaths
 from subspaces.step1 import matrix as matrix_mod
 from subspaces.step1 import samples as samples_mod
-from subspaces.step1 import significant as significant_mod
+from subspaces.step1 import selected as selected_mod
 from subspaces.step1 import tree
 from subspaces.step1.matrix import MATRIX_REF_SCHEMA_VERSION
 from subspaces.step1.recovery import HEAD_SCAN_SCHEMA_VERSION
+from subspaces.step1.selected import SELECTED_SCHEMA_VERSION
 from subspaces.step1.selectors import MAIN_HEADS_SCHEMA_VERSION
-from subspaces.step1.significant import SIGNIFICANT_SCHEMA_VERSION
 from subspaces.step1.split import TaskSplit, load_task_split
 
 # matrix_ref has no upstream artifact inputs; its content identity is the
@@ -308,69 +309,65 @@ def stage_matrix(
     return manifest, node_dir
 
 
-def stage_significant(
+def stage_selected(
     cfg: Step1Config, paths: ProjectPaths, matrix_node: Path, matrix_ref: dict
 ) -> tuple[dict, Path]:
-    """Significant-head selection with lineage-checked reuse.
+    """Selected-head selection with lineage-checked reuse.
 
-    Method variants are sibling ``sig-*`` nodes under the matrix node. An
-    existing ``significant_heads.json`` is reused only when its recorded
-    (matrix input, significant config, implementation) identity matches what
+    Method variants are sibling ``selected-*`` nodes under the matrix node. An
+    existing ``selected_heads.json`` is reused only when its recorded
+    (matrix input, selected config, implementation) identity matches what
     this config would produce — a stale artifact from a different matrix or
     method refuses instead of silently flowing downstream.
     """
-    sig_node = tree.sig_node_dir(matrix_node, cfg.significant)
-    out_path = sig_node / "significant_heads.json"
+    selected_node = tree.selected_node_dir(matrix_node, cfg.selected)
+    out_path = selected_node / "selected_heads.json"
     ref_path = matrix_node / "matrix_ref.json"
     expected = {
-        "kind": "significant_heads",
-        "schema_version": SIGNIFICANT_SCHEMA_VERSION,
+        "kind": "selected_heads",
+        "schema_version": SELECTED_SCHEMA_VERSION,
         "inputs": {"matrix_ref": manifest_ref(ref_path, paths, matrix_ref)},
         # identity slice, not to_dict: only the active method's registered
-        # parameters — a future SignificantConfig field cannot fork existing
-        # methods' identities (subspaces.step1.significant registry).
-        "config": {
-            "significant": significant_mod.significant_identity_config(cfg.significant)
-        },
-        "impl": significant_mod.impl_for(cfg.significant),
+        # parameters — a future SelectedConfig field cannot fork existing
+        # methods' identities (subspaces.step1.selected registry).
+        "config": {"selected": selected_mod.selected_identity_config(cfg.selected)},
+        "impl": selected_mod.impl_for(cfg.selected),
     }
     existing = reuse_or_refuse(
         out_path,
         expected,
-        expect_kind="significant_heads",
-        max_schema_version=SIGNIFICANT_SCHEMA_VERSION,
+        expect_kind="selected_heads",
+        max_schema_version=SELECTED_SCHEMA_VERSION,
     )
     if existing is not None:
-        return existing, sig_node
-    manifest = significant_mod.select_significant(
-        matrix_ref, cfg, paths, expected=expected
-    )
-    sig_node.mkdir(parents=True, exist_ok=True)
+        return existing, selected_node
+    manifest = selected_mod.extract_selected(matrix_ref, cfg, paths, expected=expected)
+    selected_node.mkdir(parents=True, exist_ok=True)
     write_json_atomic(out_path, manifest)
-    return manifest, sig_node
+    return manifest, selected_node
 
 
-def adopt_significant(
+def adopt_selected(
     matrix_node: Path,
-    significant_path: Path,
-    significant: dict,
+    selected_path: Path,
+    selected: dict,
     paths: ProjectPaths,
 ) -> tuple[dict, Path]:
-    """Place an EXTERNAL significant artifact (CLI ``--significant``) at its
+    """Place an EXTERNAL selected artifact (CLI ``--selected``) at its
     canonical node under this matrix; fingerprint-identical copies reuse."""
-    sig_node = matrix_node / tree.sig_dirname_from_manifest(significant)
-    out_path = sig_node / "significant_heads.json"
+    selected_node = matrix_node / tree.selected_dirname_from_manifest(selected)
+    out_path = selected_node / "selected_heads.json"
     if out_path.exists():
-        existing = json.loads(out_path.read_text(encoding="utf-8"))
-        if semantic_fingerprint(existing) != semantic_fingerprint(significant):
+        existing = modernize(json.loads(out_path.read_text(encoding="utf-8")))
+        if semantic_fingerprint(existing) != semantic_fingerprint(selected):
             raise ArtifactError(
                 f"{out_path} exists with a different semantic identity than "
-                f"the supplied {significant_path}; refusing to adopt."
+                f"the supplied {selected_path}; refusing to adopt."
             )
-        return existing, sig_node
-    sig_node.mkdir(parents=True, exist_ok=True)
-    write_json_atomic(out_path, significant)
-    return significant, sig_node
+        return existing, selected_node
+    selected_node.mkdir(parents=True, exist_ok=True)
+    write_json_atomic(out_path, selected)
+    return selected, selected_node
 
 
 def _ensure_samples(
@@ -486,7 +483,7 @@ def apply_selector(
     )
     out_path = node_dir / "main_heads.json"
     if out_path.exists():
-        existing = json.loads(out_path.read_text(encoding="utf-8"))
+        existing = modernize(json.loads(out_path.read_text(encoding="utf-8")))
         if semantic_fingerprint(existing) != semantic_fingerprint(manifest):
             raise ArtifactError(
                 f"{out_path} exists with a different semantic identity despite "
@@ -500,7 +497,7 @@ def apply_selector(
 
 def compose_heads(
     *,
-    significant_path: str | Path,
+    selected_path: str | Path,
     main_path: str | Path,
     paths: ProjectPaths,
     out_dir: Path,
@@ -508,15 +505,15 @@ def compose_heads(
     """Compose the downstream ``heads`` artifact from persisted substep outputs.
 
     Lineage is enforced: the main-heads artifact must reference a head_scan,
-    and that scan must descend from the SUPPLIED significant artifact — an
-    incompatible main/significant pairing refuses instead of composing. The
+    and that scan must descend from the SUPPLIED selected artifact — an
+    incompatible main/selected pairing refuses instead of composing. The
     output is ``<main-node>/heads.json`` (single slot: its identity is fully
-    determined by the significant + main pair fixed in that node).
+    determined by the selected + main pair fixed in that node).
     """
-    significant = read_manifest(
-        paths.resolve(significant_path),
-        expect_kind="significant_heads",
-        max_schema_version=SIGNIFICANT_SCHEMA_VERSION,
+    selected = read_manifest(
+        paths.resolve(selected_path),
+        expect_kind="selected_heads",
+        max_schema_version=SELECTED_SCHEMA_VERSION,
     )
     main = read_manifest(
         paths.resolve(main_path),
@@ -535,18 +532,18 @@ def compose_heads(
         expect_kind="head_scan",
         max_schema_version=HEAD_SCAN_SCHEMA_VERSION,
     )
-    scan_sig_ref = (scan.get("inputs") or {}).get("significant_heads")
-    if not scan_sig_ref:
+    scan_selected_ref = (scan.get("inputs") or {}).get("selected_heads")
+    if not scan_selected_ref:
         raise ArtifactError(
-            "head_scan artifact has no significant_heads input reference; "
+            "head_scan artifact has no selected_heads input reference; "
             "refusing to compose an un-lineaged head set."
         )
-    supplied_fp = semantic_fingerprint(significant)
-    if scan_sig_ref.get("semantic_fingerprint") != supplied_fp:
+    supplied_fp = semantic_fingerprint(selected)
+    if scan_selected_ref.get("semantic_fingerprint") != supplied_fp:
         raise ArtifactError(
             "lineage mismatch: the main-heads scan descends from a different "
-            "significant_heads artifact "
-            f"({str(scan_sig_ref.get('semantic_fingerprint'))[:12]} vs supplied "
+            "selected_heads artifact "
+            f"({str(scan_selected_ref.get('semantic_fingerprint'))[:12]} vs supplied "
             f"{supplied_fp[:12]}); refusing to compose."
         )
     manifest = make_manifest(
@@ -554,13 +551,12 @@ def compose_heads(
         schema_version=HEADS_SCHEMA_VERSION,
         paths=paths,
         inputs={
-            "significant_heads": manifest_ref(significant_path, paths, significant),
+            "selected_heads": manifest_ref(selected_path, paths, selected),
             "main_heads": manifest_ref(main_path, paths, main),
         },
         payload={
-            "significant_heads": [
-                [layer_idx, head_idx]
-                for layer_idx, head_idx, *_ in significant["heads"]
+            "selected_heads": [
+                [layer_idx, head_idx] for layer_idx, head_idx, *_ in selected["heads"]
             ],
             "main_heads": main["main_heads"],
             "minor_heads": main["minor_heads"],
@@ -569,12 +565,12 @@ def compose_heads(
                 "version": main["selector_version"],
                 "params": main["params"],
             },
-            "model_dims": significant.get("model_dims"),
+            "model_dims": selected.get("model_dims"),
         },
     )
     out_path = out_dir / "heads.json"
     if out_path.exists():
-        existing = json.loads(out_path.read_text(encoding="utf-8"))
+        existing = modernize(json.loads(out_path.read_text(encoding="utf-8")))
         if semantic_fingerprint(existing) != semantic_fingerprint(manifest):
             raise ArtifactError(
                 f"{out_path} exists with a different semantic identity; "
@@ -605,8 +601,8 @@ def make_model_loader(cfg: Step1Config, resolved: dict):
 def _scan_expected_identity(
     cfg: Step1Config,
     paths: ProjectPaths,
-    significant_path: Path,
-    significant: dict,
+    selected_path: Path,
+    selected: dict,
     activation_samples: dict,
     scan_samples: dict,
     scan_samples_path: Path,
@@ -621,7 +617,7 @@ def _scan_expected_identity(
 
     z_identity = cache_identity(cfg, resolved, activation_samples)
     inputs_refs = {
-        "significant_heads": manifest_ref(significant_path, paths, significant),
+        "selected_heads": manifest_ref(selected_path, paths, selected),
         "scan_samples": manifest_ref(scan_samples_path, paths, scan_samples),
         "z_cache": {"content_fingerprint": cache_fingerprint(z_identity)},
     }
@@ -643,8 +639,8 @@ def _scan_expected_identity(
 def stage_scan(
     cfg: Step1Config,
     paths: ProjectPaths,
-    sig_node: Path,
-    significant: dict,
+    selected_node: Path,
+    selected: dict,
     activation_samples: tuple[dict, Path],
     scan_samples: tuple[dict, Path],
     resolved: dict,
@@ -653,26 +649,26 @@ def stage_scan(
     """Recovery scan with lineage-checked reuse (GPU on cache/scan miss).
 
     Scan protocol variants are sibling ``scan-*`` nodes under the
-    significant node. An EXTERNAL significant artifact (CLI
-    ``--significant``) is first adopted at its canonical node
-    (``adopt_significant``), so the scan always hangs off the node it
+    selected node. An EXTERNAL selected artifact (CLI
+    ``--selected``) is first adopted at its canonical node
+    (``adopt_selected``), so the scan always hangs off the node it
     descends from.
     """
     from subspaces.step1 import recovery as recovery_mod
     from subspaces.step1.zcache import ensure_zcache
 
-    sig_path = sig_node / "significant_heads.json"
+    selected_path = selected_node / "selected_heads.json"
     expected = _scan_expected_identity(
         cfg,
         paths,
-        sig_path,
-        significant,
+        selected_path,
+        selected,
         activation_samples[0],
         scan_samples[0],
         scan_samples[1],
         resolved,
     )
-    scan_node = tree.scan_node_dir(sig_node, cfg, expected)
+    scan_node = tree.scan_node_dir(selected_node, cfg, expected)
     out_path = scan_node / "head_scan.json"
     existing = reuse_or_refuse(
         out_path,
@@ -688,7 +684,7 @@ def stage_scan(
     )
     scan_node.mkdir(parents=True, exist_ok=True)
     manifest = recovery_mod.run_scan(
-        significant,
+        selected,
         scan_samples[0],
         {"z": z_results, "content_fingerprint": fingerprint},
         cfg,
@@ -742,10 +738,10 @@ def _verify_outcomes(base_dir: Path, manifest: dict) -> None:
 
 
 def verify_selection_lineage(
-    main_manifest: dict, scan_manifest: dict, significant: dict
+    main_manifest: dict, scan_manifest: dict, selected: dict
 ) -> None:
     """A main-heads artifact must descend from THIS scan, and the scan from
-    THIS significant artifact — enforced before any selected-set evaluation."""
+    THIS selected artifact — enforced before any selected-set evaluation."""
     scan_ref = (main_manifest.get("inputs") or {}).get("head_scan")
     if not scan_ref:
         raise ArtifactError(
@@ -759,12 +755,15 @@ def verify_selection_lineage(
             f"different scan ({str(scan_ref.get('semantic_fingerprint'))[:12]} "
             f"vs this run's {scan_fp[:12]}); refusing."
         )
-    scan_sig_ref = (scan_manifest.get("inputs") or {}).get("significant_heads")
-    sig_fp = semantic_fingerprint(significant)
-    if not scan_sig_ref or scan_sig_ref.get("semantic_fingerprint") != sig_fp:
+    scan_selected_ref = (scan_manifest.get("inputs") or {}).get("selected_heads")
+    selected_fp = semantic_fingerprint(selected)
+    if (
+        not scan_selected_ref
+        or scan_selected_ref.get("semantic_fingerprint") != selected_fp
+    ):
         raise ArtifactError(
             "lineage mismatch: the scan does not descend from this run's "
-            "significant_heads artifact; refusing."
+            "selected_heads artifact; refusing."
         )
 
 
@@ -798,9 +797,9 @@ def stage_evaluate_headset(
     paths: ProjectPaths,
     split: TaskSplit | None,
     matrix_node: Path,
-    sig_node: Path,
+    selected_node: Path,
     scan_node: Path,
-    significant: dict,
+    selected: dict,
     matrix_ref: dict,
     main_manifest: dict,
     main_node: Path,
@@ -810,11 +809,11 @@ def stage_evaluate_headset(
     model_loader,
     subspace_path: Path | None = None,
 ) -> dict:
-    """Selected-set evaluation. The ONLY stage that materializes held-out
+    """Headset evaluation of a main selection. The ONLY stage that materializes held-out
     manifests/caches (after selection), per the corrected protocol. Output:
     ``<main-node>/eval-<h10>.json`` (+ outcomes npz) — final-eval protocol
     variants are sibling files inside the main node. With ``subspace_path``
-    (a step2_subspace artifact over ⊇ the selected heads, fitted on exactly
+    (a step2_subspace artifact over ⊇ the evaluated heads, fitted on exactly
     this evaluation's train+held-out z caches) the projected arm
     ``proj_meanab`` joins the arm set and the subspace becomes an explicit
     identity-bearing input."""
@@ -826,7 +825,7 @@ def stage_evaluate_headset(
     # Lineage FIRST — before any held-out material is created (a foreign main
     # must be refused for free): (1) the on-disk scan must be THE scan this
     # run's config would produce (trust-on-disk closed: audit experiment 7b/7c);
-    # (2) main -> that scan -> this run's significant.
+    # (2) main -> that scan -> this run's selected set.
     scan_manifest = read_manifest(
         scan_node / "head_scan.json",
         expect_kind="head_scan",
@@ -835,8 +834,8 @@ def stage_evaluate_headset(
     expected_scan = _scan_expected_identity(
         cfg,
         paths,
-        sig_node / "significant_heads.json",
-        significant,
+        selected_node / "selected_heads.json",
+        selected,
         activation_samples[0],
         scan_samples[0],
         scan_samples[1],
@@ -849,7 +848,7 @@ def stage_evaluate_headset(
             "against a foreign or stale scan."
         )
     _verify_outcomes(scan_node, scan_manifest)
-    verify_selection_lineage(main_manifest, scan_manifest, significant)
+    verify_selection_lineage(main_manifest, scan_manifest, selected)
 
     subspace_manifest = None
     if subspace_path is not None:
@@ -863,7 +862,7 @@ def stage_evaluate_headset(
             expect_kind=STEP2_SUBSPACE_KIND,
             max_schema_version=STEP2_SUBSPACE_SCHEMA_VERSION,
         )
-        selected = {
+        main_set = {
             (int(layer_idx), int(head_idx))
             for layer_idx, head_idx in main_manifest["main_heads"]
         }
@@ -871,11 +870,11 @@ def stage_evaluate_headset(
             (int(layer_idx), int(head_idx))
             for layer_idx, head_idx in subspace_manifest["config"]["heads"]
         }
-        uncovered = sorted(selected - covered)
+        uncovered = sorted(main_set - covered)
         if uncovered:
             raise ArtifactError(
                 f"step2_subspace artifact {subspace_path} covers no PCA for "
-                f"selected head(s) {uncovered}; recompute step 2 over the "
+                f"evaluated head(s) {uncovered}; recompute step 2 over the "
                 "full selected set."
             )
 
@@ -909,8 +908,8 @@ def stage_evaluate_headset(
 
     inputs_refs = {
         "main_heads": manifest_ref(main_node / "main_heads.json", paths, main_manifest),
-        "significant_heads": manifest_ref(
-            sig_node / "significant_heads.json", paths, significant
+        "selected_heads": manifest_ref(
+            selected_node / "selected_heads.json", paths, selected
         ),
         "matrix_ref": manifest_ref(matrix_node / "matrix_ref.json", paths, matrix_ref),
         "final_eval_samples": manifest_ref(final_path, paths, final_samples),
@@ -974,7 +973,7 @@ def stage_evaluate_headset(
         return existing
     manifest = headset_mod.evaluate_headset(
         main_manifest,
-        significant,
+        selected,
         matrix_ref,
         train_mean_z,
         {"z": z_heldout, "content_fingerprint": fp_heldout},
@@ -999,13 +998,13 @@ def run(cfg: Step1Config, paths: ProjectPaths) -> dict:
     model_loader = make_model_loader(cfg, resolved)
 
     matrix_ref, matrix_node = stage_matrix(cfg, paths, journal_dir)
-    significant, sig_node = stage_significant(cfg, paths, matrix_node, matrix_ref)
+    selected, selected_node = stage_selected(cfg, paths, matrix_node, matrix_ref)
     selection_samples = stage_selection_samples(cfg, paths, split)
     _, scan_node = stage_scan(
         cfg,
         paths,
-        sig_node,
-        significant,
+        selected_node,
+        selected,
         selection_samples["activation"],
         selection_samples["scan"],
         resolved,
@@ -1017,9 +1016,9 @@ def run(cfg: Step1Config, paths: ProjectPaths) -> dict:
         paths,
         split,
         matrix_node,
-        sig_node,
+        selected_node,
         scan_node,
-        significant,
+        selected,
         matrix_ref,
         main_manifest,
         main_node,
@@ -1029,7 +1028,7 @@ def run(cfg: Step1Config, paths: ProjectPaths) -> dict:
         model_loader,
     )
     compose_heads(
-        significant_path=sig_node / "significant_heads.json",
+        selected_path=selected_node / "selected_heads.json",
         main_path=main_node / "main_heads.json",
         paths=paths,
         out_dir=main_node,
@@ -1054,7 +1053,7 @@ def run(cfg: Step1Config, paths: ProjectPaths) -> dict:
     nodes_path = journal_dir / "nodes.json"
     selections: dict = {}
     if nodes_path.exists():
-        selections = json.loads(nodes_path.read_text(encoding="utf-8")).get(
+        selections = modernize(json.loads(nodes_path.read_text(encoding="utf-8"))).get(
             "selections", {}
         )
     selections[selection_key] = selection_summary
@@ -1068,7 +1067,7 @@ def run(cfg: Step1Config, paths: ProjectPaths) -> dict:
             "selections": selections,
             "nodes": {
                 "matrix": paths.relativize(matrix_node),
-                "significant": paths.relativize(sig_node),
+                "selected": paths.relativize(selected_node),
                 "scan": paths.relativize(scan_node),
             },
         },

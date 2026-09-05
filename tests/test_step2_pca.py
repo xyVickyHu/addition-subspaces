@@ -149,7 +149,7 @@ def step2_repo(fake_repo):
         schema_version=1,
         paths=paths,
         payload={
-            "significant_heads": [[1, 1], [2, 3], [0, 0]],
+            "selected_heads": [[1, 1], [2, 3], [0, 0]],
             "main_heads": [[1, 1], [2, 3]],
             "minor_heads": [],
             "model_dims": {"n_layers": 4, "n_heads": 4},
@@ -348,9 +348,9 @@ def test_main_heads_artifact_kind_accepted(step2_repo, capsys):
         json.loads(p.read_text(encoding="utf-8")) for p in node.glob("subspace-*.json")
     ]
     assert any(m["config"]["heads"] == [[2, 3]] for m in manifests)
-    # significant set is not available from a main_heads artifact
-    with pytest.raises(HeadSpecError, match="no 'significant' set"):
-        load_head_set(main_path, which="significant")
+    # selected set is not available from a main_heads artifact
+    with pytest.raises(HeadSpecError, match="no 'selected' set"):
+        load_head_set(main_path, which="selected")
 
 
 def test_explicit_heads_require_out_dir(step2_repo, tmp_path, capsys):

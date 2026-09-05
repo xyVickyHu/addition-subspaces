@@ -1,6 +1,6 @@
 # TINY FUNCTIONAL GPU SMOKE — first GPU gate (before the 20/task runtime
 # calibration). Exercises every substep end to end in minutes: 2 train tasks +
-# 1 held-out task, 2 examples per manifest, top-2 significant heads only,
+# 1 held-out task, 2 examples per manifest, top-2 selected heads only,
 # c in 0..2. NOT a source of reported numbers and NOT a runtime estimate.
 #
 # The canonical matrix is reused on the tiny task subset, so the task_dir
@@ -30,7 +30,7 @@ samples:
   scan: {examples_per_task: 2, seed: 42, task_set: train}
   heldout_activation: {examples_per_task: 2, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 2, seed: 42, task_set: eval}
-significant:
+selected:
   method: elbow
 scan:
   c_min: 0

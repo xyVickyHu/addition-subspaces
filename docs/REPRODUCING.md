@@ -24,7 +24,7 @@ Every phase has a dedicated runner module under `subspaces/runners/`; the
 
 | Phase | Description | Entry point | Library modules |
 |------:|-------------|-------------|-----------------|
-| 1 | Head-selection optimization training (sparse coefficient matrix over layer×head), then significant-head extraction | `subspaces.runners.train_matrix` + `subspaces.runners.run_head_select` | `subspaces.utils.activations`, `subspaces.utils.intervene`, `subspaces.utils.data` |
+| 1 | Head-selection optimization training (sparse coefficient matrix over layer×head), then selected-head extraction | `subspaces.runners.train_matrix` + `subspaces.runners.run_head_select` | `subspaces.utils.activations`, `subspaces.utils.intervene`, `subspaces.utils.data` |
 | 2 | Per-head and subset FV evaluation (mean-ablation narrow-down to the main heads) | `subspaces.runners.run_head_eval`, `subspaces.runners.run_head_sum_eval` | `subspaces.utils.heads`, `subspaces.utils.intervene` |
 | 3 | PCA decomposition + paper §4 six-dimensional basis (4D periodic units mod 2/5/10 + 2D magnitude) | `subspaces.runners.run_pca_decomposition` | `subspaces.utils.pca`, `subspaces.utils.activations` |
 | 4 | Per-demonstration extracted-signal magnitudes/directions (§5.1/5.2 label-token peaking + signal alignment) | `subspaces.runners.run_signal_extraction` | `subspaces.utils.signals` |
@@ -59,7 +59,7 @@ so the four analysis phases above are stages 1–4:
 2. **Head selection + FV-variant evaluations.** Auto-thresholds the trained
    matrix (`--auto-threshold elbow|fraction|fixed`, default `elbow`, which
    returns the paper's 33 heads), then measures: the clean ceiling, the
-   full-significant FV (`sum_33` config, unit coefficients), the raw
+   full-selected FV (`sum_33` config, unit coefficients), the raw
    trained-coefficient FV, a per-head recovery (dose-response) scan used by
    the default `--main-rank-by recovery` main-head selector, and the
    main+mean-ablation FV. `--main-heads-fallback 15:2,15:1,13:6` pins the
@@ -68,7 +68,7 @@ so the four analysis phases above are stages 1–4:
    `head_acc_dict.pth` (shipped in `artifacts/matrix_add_0204_clip_lambda0.05/`,
    regenerable with `subspaces.runners.run_head_eval`); `--main-rank-by coef` ranks
    by |coefficient|.
-3. **PCA decomposition** per significant head plus the §4 period/magnitude
+3. **PCA decomposition** per selected head plus the §4 period/magnitude
    basis fit on the main heads (add-k tasks only).
 4. **§5 extracted-signal analysis** on the main heads (add-k only): §5.1/5.2
    label-token peaking, signal alignment, and the label-token aggregation
@@ -90,12 +90,12 @@ given), e.g. `meta-llama_meta-llama-3-8b-instruct__number_add`.
 | File | Written by | Contents |
 |---|---|---|
 | `manifest.json` | end of run | Full run record: arguments, matrix dir, stages run, and the stage summaries. Its presence marks the run complete (skip unless `--rerun`). |
-| `stage2_head_eval.json` | stage 2 | Threshold, significant/main head sets, all accuracy variants (clean, `sum_33`, raw-coefficient, main+mean-ablation, mean-FV), recovery curves and decisions. |
+| `stage2_head_eval.json` | stage 2 | Threshold, selected/main head sets, all accuracy variants (clean, `sum_33`, raw-coefficient, main+mean-ablation, mean-FV), recovery curves and decisions. |
 | `stage2_recovery_per_example.json` | stage 2 | Per-example 0/1 correctness for every (head, scale) point of the recovery scan. |
 | `stage3_pca.json` | stage 3 | Per-head PCA cumulative variance, #PCs to reach 95%, and the §4 mod-vector fits (R² per direction) on the main heads. |
 | `stage4_signals.json` | stage 4 | Per-main-head §5.1/5.2 statistics (label-token peaking, alignment, label-token aggregation) with bootstrap CIs. |
 | `plots/stage2_recovery_dose_response.png` | stage 2 | Per-head dose-response curves; main heads highlighted. |
-| `plots/pca_cumvar_L{L}H{H}.png` | stage 3 | Cumulative-variance curve per significant head. |
+| `plots/pca_cumvar_L{L}H{H}.png` | stage 3 | Cumulative-variance curve per selected head. |
 | `plots/attn_profile_*.png`, `plots/weighting_gain_*.png` | stage 4 | Attention-profile and label-token weighting-gain plots. |
 
 Stage 5 does not write into the run directory; it appends to
@@ -163,7 +163,7 @@ are immutable reference artifacts:
 ```bash
 mkdir -p log && cp -r artifacts/matrix_add_0204_clip_lambda0.05 log/matrix_add_rerun
 
-# Phase 1 (post-training) — extract significant heads, auto-thresholded
+# Phase 1 (post-training) — extract selected heads, auto-thresholded
 # (--report-main-heads ranks by head_acc_dict.pth when present, else by |coef|)
 python -m subspaces.runners.run_head_select \
   --log_dir log/matrix_add_rerun \
@@ -202,7 +202,7 @@ paper's mean-ablation setting). For newly trained matrices, use
 `run_pipeline`'s default recovery-based main-head selection, or pin heads
 explicitly with `--main-heads-fallback`.
 `subspaces.runners.verify_reproducibility` is a CPU-only sanity check that the
-shipped matrix reproduces the paper's 33-head significant set and the
+shipped matrix reproduces the paper's 33-head selected set and the
 (13,6)/(15,2)/(15,1) main heads.
 
 ## Reproducing the generality appendix (App. B)
@@ -216,7 +216,7 @@ cell's `*_siggap_avg3.yaml` and `*_aie.yaml` configs
 (`scripts/step1_run.sbatch`, `scripts/step1_aie.sbatch`,
 `scripts/step1_evaluate_headset.sbatch`), then build the step-2/step-3
 contexts (`scripts/make_step2_context.py`, `scripts/make_step3_context.py`)
-and run the subspace/label-share waves over `configs/step23_recpos_cells.tsv`
+and run the subspace/label-share waves over `configs/step23_significant_cells.tsv`
 (`scripts/step23_projected_wave.sbatch`, `scripts/step23_step3_wave.sbatch`,
 `scripts/step23_label_share_summary.py`). The Appendix-E onto/out-of
 projection arms run via `subspaces.runners.run_projection_causal`

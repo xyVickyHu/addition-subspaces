@@ -51,13 +51,13 @@ def test_heads_required_error_is_clear(fake_repo, capsys):
     assert "--heads" in capsys.readouterr().err
 
 
-def test_step1_select_significant_succeeds(fake_repo, capsys):
+def test_step1_extract_selected_succeeds(fake_repo, capsys):
     from subspaces.config import load_step1_config
     from subspaces.step1 import tree
 
     config = str(fake_repo / "configs" / "step1_test.yaml")
     rc = step1_cli.main(
-        ["--root", str(fake_repo), "select-significant", "--config", config]
+        ["--root", str(fake_repo), "extract-selected", "--config", config]
     )
     assert rc == 0
     # journal entry (per-invocation config record) + one matrix node
@@ -68,8 +68,8 @@ def test_step1_select_significant_succeeds(fake_repo, capsys):
     assert len(node_dirs) == 1
     assert (node_dirs[0] / "matrix_ref.json").is_file()
     cfg = load_step1_config(fake_repo / "configs" / "step1_test.yaml")
-    sig_node = tree.sig_node_dir(node_dirs[0], cfg.significant)
-    assert (sig_node / "significant_heads.json").is_file()
+    selected_node = tree.selected_node_dir(node_dirs[0], cfg.selected)
+    assert (selected_node / "selected_heads.json").is_file()
 
 
 def test_step1_gpu_substep_refuses_unresolved_model(fake_repo, capsys):
@@ -84,7 +84,7 @@ def test_step1_gpu_substep_refuses_unresolved_model(fake_repo, capsys):
     assert len(node_dirs) == 1
     # the CPU substeps may have staged their nodes, but no scan node (or any
     # downstream artifact) may exist after the refusal
-    assert not list(node_dirs[0].glob("sig-*/scan-*"))
+    assert not list(node_dirs[0].glob("selected-*/scan-*"))
     assert not list(node_dirs[0].rglob("heads.json"))
 
 
@@ -116,7 +116,7 @@ def test_step1_matrix_flag_overrides_config(fake_repo, capsys):
         [
             "--root",
             str(fake_repo),
-            "select-significant",
+            "extract-selected",
             "--config",
             config,
             "--matrix",
@@ -143,7 +143,7 @@ def test_step1_select_main_param_wiring(fake_repo, tmp_path, capsys):
         paths=ProjectPaths.from_root(fake_repo),
         payload={
             "curves": {"15:2": {"0": 0.1, "1": 0.5, "2": 0.6}},
-            "baselines": {"clean_acc": 0.9, "full_significant_acc": 0.8},
+            "baselines": {"clean_acc": 0.9, "full_selected_acc": 0.8},
             "n_eval_examples_per_head_per_c": 300,
             "c_grid": [0, 1, 2],
         },
@@ -184,7 +184,7 @@ def test_step1_select_main_param_wiring(fake_repo, tmp_path, capsys):
     assert "pin" in capsys.readouterr().err
 
 
-def test_step1_scan_validates_significant_artifact(fake_repo, tmp_path, capsys):
+def test_step1_scan_validates_selected_artifact(fake_repo, tmp_path, capsys):
     from subspaces.artifacts import make_manifest, write_json_atomic
     from subspaces.paths import ProjectPaths
 
@@ -194,7 +194,7 @@ def test_step1_scan_validates_significant_artifact(fake_repo, tmp_path, capsys):
         paths=ProjectPaths.from_root(fake_repo),
         payload={"main_heads": []},
     )
-    wrong_path = tmp_path / "not_significant.json"
+    wrong_path = tmp_path / "not_selected.json"
     write_json_atomic(wrong_path, wrong_kind)
 
     config = str(fake_repo / "configs" / "step1_test.yaml")
@@ -205,7 +205,7 @@ def test_step1_scan_validates_significant_artifact(fake_repo, tmp_path, capsys):
             "scan",
             "--config",
             config,
-            "--significant",
+            "--selected",
             str(wrong_path),
         ]
     )
@@ -213,13 +213,13 @@ def test_step1_scan_validates_significant_artifact(fake_repo, tmp_path, capsys):
     assert "expected kind" in capsys.readouterr().err
 
 
-def test_scan_refuses_foreign_significant_artifact(fake_repo, tmp_path, capsys):
-    """--significant must descend from THIS run's matrix (audit finding)."""
+def test_scan_refuses_foreign_selected_artifact(fake_repo, tmp_path, capsys):
+    """--selected must descend from THIS run's matrix (audit finding)."""
     from subspaces.artifacts import make_manifest, write_json_atomic
     from subspaces.paths import ProjectPaths
 
     foreign = make_manifest(
-        kind="significant_heads",
+        kind="selected_heads",
         schema_version=1,
         paths=ProjectPaths.from_root(fake_repo),
         inputs={
@@ -229,12 +229,12 @@ def test_scan_refuses_foreign_significant_artifact(fake_repo, tmp_path, capsys):
             }
         },
         payload={
-            "impl": {"module": "subspaces.step1.significant", "algorithm_version": 1},
+            "impl": {"module": "subspaces.step1.selected", "algorithm_version": 1},
             "heads": [[0, 0, 0.9]],
             "model_dims": {"n_layers": 4, "n_heads": 4},
         },
     )
-    foreign_path = tmp_path / "foreign_significant.json"
+    foreign_path = tmp_path / "foreign_selected.json"
     write_json_atomic(foreign_path, foreign)
 
     config = str(fake_repo / "configs" / "step1_test.yaml")
@@ -245,7 +245,7 @@ def test_scan_refuses_foreign_significant_artifact(fake_repo, tmp_path, capsys):
             "scan",
             "--config",
             config,
-            "--significant",
+            "--selected",
             str(foreign_path),
         ]
     )
@@ -259,25 +259,23 @@ def test_compose_cli_validates_lineage(fake_repo, tmp_path, capsys):
     from subspaces.paths import ProjectPaths
 
     paths = ProjectPaths.from_root(fake_repo)
-    significant = make_manifest(
-        kind="significant_heads",
+    selected = make_manifest(
+        kind="selected_heads",
         schema_version=1,
         paths=paths,
         payload={
-            "impl": {"module": "subspaces.step1.significant", "algorithm_version": 1},
+            "impl": {"module": "subspaces.step1.selected", "algorithm_version": 1},
             "heads": [[1, 1, 0.9], [2, 3, 0.8]],
             "model_dims": {"n_layers": 4, "n_heads": 4},
         },
     )
-    significant_path = tmp_path / "significant_heads.json"
-    write_json_atomic(significant_path, significant)
+    selected_path = tmp_path / "selected_heads.json"
+    write_json_atomic(selected_path, selected)
     scan = make_manifest(
         kind="head_scan",
         schema_version=1,
         paths=paths,
-        inputs={
-            "significant_heads": manifest_ref(significant_path, paths, significant)
-        },
+        inputs={"selected_heads": manifest_ref(selected_path, paths, selected)},
         payload={"curves": {}, "c_grid": [0, 1]},
     )
     scan_path = tmp_path / "head_scan.json"
@@ -306,8 +304,8 @@ def test_compose_cli_validates_lineage(fake_repo, tmp_path, capsys):
             "--root",
             str(fake_repo),
             "compose",
-            "--significant",
-            str(significant_path),
+            "--selected",
+            str(selected_path),
             "--main",
             str(main_path),
             "--out-dir",
@@ -315,20 +313,20 @@ def test_compose_cli_validates_lineage(fake_repo, tmp_path, capsys):
         ]
     )
     assert rc == 0
-    # single-slot heads artifact (identity is fixed by the sig + main pair)
+    # single-slot heads artifact (identity is fixed by the selected + main pair)
     assert (tmp_path / "heads" / "heads.json").is_file()
 
-    # foreign significant refuses
-    other = dict(significant)
+    # foreign selected refuses
+    other = dict(selected)
     other["heads"] = [[3, 3, 0.7]]
-    other_path = tmp_path / "other_significant.json"
+    other_path = tmp_path / "other_selected.json"
     write_json_atomic(other_path, other)
     rc = step1_cli.main(
         [
             "--root",
             str(fake_repo),
             "compose",
-            "--significant",
+            "--selected",
             str(other_path),
             "--main",
             str(main_path),

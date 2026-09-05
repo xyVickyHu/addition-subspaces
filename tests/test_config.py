@@ -57,7 +57,7 @@ def test_raw_coef_contract_is_all_heads_from_final_checkpoint(tmp_path):
     base = {"protocol": "legacy_reproduction", "matrix": MATRIX}
     for raw_coef, match in (
         ({"coefficient_source": "selection_checkpoint"}, "final_checkpoint"),
-        ({"head_scope": "significant"}, "head_scope must be all"),
+        ({"head_scope": "selected"}, "head_scope must be all"),
     ):
         with pytest.raises(ConfigError, match=match):
             load_step1_config(_write(tmp_path, {**base, "raw_coef": raw_coef}))
@@ -189,41 +189,39 @@ def test_discriminated_matrix_schema(tmp_path):
     assert cfg.matrix.train.seed == 7 and cfg.matrix.reuse_path is None
 
 
-def test_discriminated_significant_schema(tmp_path):
+def test_discriminated_selected_schema(tmp_path):
     base = {"protocol": "legacy_reproduction", "matrix": MATRIX}
     with pytest.raises(ConfigError, match="elbow takes no"):
-        load_step1_config(_write(tmp_path, {**base, "significant": {"fraction": 0.9}}))
+        load_step1_config(_write(tmp_path, {**base, "selected": {"fraction": 0.9}}))
     with pytest.raises(ConfigError, match="requires fraction"):
         load_step1_config(
-            _write(tmp_path, {**base, "significant": {"method": "fraction"}})
+            _write(tmp_path, {**base, "selected": {"method": "fraction"}})
         )
     with pytest.raises(ConfigError, match="requires fixed_threshold"):
-        load_step1_config(
-            _write(tmp_path, {**base, "significant": {"method": "fixed"}})
-        )
+        load_step1_config(_write(tmp_path, {**base, "selected": {"method": "fixed"}}))
     cfg = load_step1_config(
         _write(
             tmp_path,
-            {**base, "significant": {"method": "fixed", "fixed_threshold": 0.2}},
+            {**base, "selected": {"method": "fixed", "fixed_threshold": 0.2}},
         )
     )
-    assert cfg.significant.fixed_threshold == 0.2 and cfg.significant.fraction is None
+    assert cfg.selected.fixed_threshold == 0.2 and cfg.selected.fraction is None
 
 
 def test_discriminated_largest_gap_schema(tmp_path):
     base = {"protocol": "legacy_reproduction", "matrix": MATRIX}
     cfg = load_step1_config(
-        _write(tmp_path, {**base, "significant": {"method": "largest_gap"}})
+        _write(tmp_path, {**base, "selected": {"method": "largest_gap"}})
     )
-    assert cfg.significant.method == "largest_gap"
-    assert cfg.significant.fraction is None
-    assert cfg.significant.fixed_threshold is None
+    assert cfg.selected.method == "largest_gap"
+    assert cfg.selected.fraction is None
+    assert cfg.selected.fixed_threshold is None
     # parameter-free: the other branches' fields are rejected
     with pytest.raises(ConfigError, match="largest_gap takes no"):
         load_step1_config(
             _write(
                 tmp_path,
-                {**base, "significant": {"method": "largest_gap", "fraction": 0.9}},
+                {**base, "selected": {"method": "largest_gap", "fraction": 0.9}},
             )
         )
     with pytest.raises(ConfigError, match="largest_gap takes no"):
@@ -232,23 +230,23 @@ def test_discriminated_largest_gap_schema(tmp_path):
                 tmp_path,
                 {
                     **base,
-                    "significant": {
+                    "selected": {
                         "method": "largest_gap",
                         "fixed_threshold": 0.2,
                     },
                 },
             )
         )
-    with pytest.raises(ConfigError, match="unknown significant method .*registered"):
+    with pytest.raises(ConfigError, match="unknown selected-set method .*registered"):
         load_step1_config(
-            _write(tmp_path, {**base, "significant": {"method": "biggest_gap"}})
+            _write(tmp_path, {**base, "selected": {"method": "biggest_gap"}})
         )
 
 
 def test_committed_siggap_variant_configs_load():
     for name in ("step1_number_add_llama3_siggap.yaml",):
         cfg = load_step1_config(REPO / "configs" / name)
-        assert cfg.significant.method == "largest_gap"
+        assert cfg.selected.method == "largest_gap"
         assert cfg.protocol == "corrected_holdout"
         assert cfg.matrix.mode == "reuse"
 

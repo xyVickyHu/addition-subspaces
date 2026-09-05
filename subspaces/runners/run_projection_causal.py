@@ -4,7 +4,7 @@ Regenerates the paper's Appendix-E arms from the ADOPTED modern artifacts,
 reproducing the recovered legacy semantics of
 the legacy evaluation-notebook protocol exactly:
 
-  For a head ``(l, h)`` with per-head optimal coefficient ``c*`` (the recpos
+  For a head ``(l, h)`` with per-head optimal coefficient ``c*`` (the significant
   ``main_heads.json`` ``decisions[l:h].c_star``), a column subset ``cols`` of
   the fitted mod-vector matrix ``M = mod_vectors[l:h]`` (d_model, 6) —
   column order ``MOD_VECTOR_COLS = (mod50, mod2, mod5, mod10c, mod10s,
@@ -19,7 +19,7 @@ the legacy evaluation-notebook protocol exactly:
   the per-task intervention vector is
 
     FV(t) = c* · [ (z_t[l,h] − mean_z[l,h]) B Bᵀ + mean_z[l,h] ]
-            + Σ_{(l',h') ∈ significant ∖ {(l,h)}} mean_z[l',h']
+            + Σ_{(l',h') ∈ selected ∖ {(l,h)}} mean_z[l',h']
 
   where ``z_t`` comes from the cell's merged (train + held-out) z caches and
   ``mean_z`` is the TRAIN-task mean (25 tasks — the modern recovery-scan
@@ -64,15 +64,15 @@ from pathlib import Path
 
 import numpy as np
 
-from subspaces.artifacts import ArtifactError
+from subspaces.artifacts import ArtifactError, modernize
 from subspaces.paths import ProjectPaths
 
 RESULT_KIND = "projection_causal"
 RESULT_SCHEMA_VERSION = 1
 IMPL = {"module": "subspaces.runners.run_projection_causal", "algorithm_version": 1}
 
-CELLS_TSV = "configs/step23_recpos_cells.tsv"
-CONTEXT_TEMPLATE = "configs/contexts/step2_recpos_{cell}.yaml"
+CELLS_TSV = "configs/step23_significant_cells.tsv"
+CONTEXT_TEMPLATE = "configs/contexts/step2_significant_{cell}.yaml"
 SUPPORTED_CELLS = ("add", "phi4", "qwen")
 
 # Named column subsets of the mod-vector matrix (MOD_VECTOR_COLS order:
@@ -87,7 +87,7 @@ SUBSPACE_COLS: dict[str, tuple[int, ...]] = {
 VARIANTS = ("onto", "out")
 ALL_ARMS = tuple(f"{v}_{s}" for v in VARIANTS for s in SUBSPACE_COLS)
 
-# Paper Appendix-E heads per cell (the recpos MAIN heads carrying the
+# Paper Appendix-E heads per cell (the significant MAIN heads carrying the
 # published panels; every one has a c_star decision and a fitted mod-vector).
 DEFAULT_HEADS: dict[str, tuple[tuple[int, int], ...]] = {
     "add": ((15, 2), (15, 1), (13, 6)),
@@ -178,7 +178,7 @@ def build_fv_vectors(
 ) -> dict[str, np.ndarray]:
     """Per-task intervention vectors for one arm (float64).
 
-    FV(t) = c·[(z_t − μ_h) B Bᵀ + μ_h] + Σ_{sig∖{h}} μ_{h'} — the recovered
+    FV(t) = c·[(z_t − μ_h) B Bᵀ + μ_h] + Σ_{selected∖{h}} μ_{h'} — the recovered
     legacy ``eval_head_mod`` formula with the train-only mean convention.
     """
     fvs: dict[str, np.ndarray] = {}
@@ -200,7 +200,7 @@ def task_sort_key(task_name: str) -> int:
 
 
 def resolve_cell(cell: str, paths: ProjectPaths) -> dict:
-    """Resolve one TSV cell to its config, context, recpos node, and periodic
+    """Resolve one TSV cell to its config, context, significant node, and periodic
     artifact paths. Pure path/JSON work — no tensors, no model."""
     import yaml
 
@@ -225,18 +225,18 @@ def resolve_cell(cell: str, paths: ProjectPaths) -> dict:
     if row is None or len(row) < 3:
         raise ArtifactError(f"cell {cell!r} not found in {tsv_path}")
     config_path = paths.resolve(row[1])
-    recpos_main_path = paths.resolve(row[2])
-    node_dir = recpos_main_path.parent
+    significant_main_path = paths.resolve(row[2])
+    node_dir = significant_main_path.parent
     cfg = load_step1_config(config_path)
 
     context_path = paths.resolve(CONTEXT_TEMPLATE.format(cell=cell))
     context = load_context(context_path)
     context.validate_refs(paths)
     context_heads = context.heads_artifact_path()
-    if context_heads and paths.resolve(context_heads) != recpos_main_path:
+    if context_heads and paths.resolve(context_heads) != significant_main_path:
         raise ArtifactError(
             f"context {context_path} pins heads artifact {context_heads}, but the "
-            f"cells TSV points at {recpos_main_path}; refusing mismatched sources."
+            f"cells TSV points at {significant_main_path}; refusing mismatched sources."
         )
     if context.model.get("name") != cfg.model.name:
         raise ArtifactError(
@@ -263,15 +263,17 @@ def resolve_cell(cell: str, paths: ProjectPaths) -> dict:
     if not npz_path.is_file():
         raise ArtifactError(f"mod-vector npz missing: {npz_path}")
 
-    with open(recpos_main_path, encoding="utf-8") as fh:
-        main_heads = json.load(fh)
+    with open(significant_main_path, encoding="utf-8") as fh:
+        main_heads = modernize(json.load(fh))
     if "decisions" not in main_heads:
-        raise ArtifactError(f"{recpos_main_path} has no per-head decisions (c_star)")
-    significant_path = node_dir.parent.parent / "significant_heads.json"
-    if not significant_path.is_file():
-        raise ArtifactError(f"significant_heads.json missing: {significant_path}")
-    with open(significant_path, encoding="utf-8") as fh:
-        significant = json.load(fh)
+        raise ArtifactError(
+            f"{significant_main_path} has no per-head decisions (c_star)"
+        )
+    selected_path = node_dir.parent.parent / "selected_heads.json"
+    if not selected_path.is_file():
+        raise ArtifactError(f"selected_heads.json missing: {selected_path}")
+    with open(selected_path, encoding="utf-8") as fh:
+        selected = modernize(json.load(fh))
 
     with open(paths.resolve(cfg.task.task_split), encoding="utf-8") as fh:
         split = yaml.safe_load(fh)
@@ -286,10 +288,10 @@ def resolve_cell(cell: str, paths: ProjectPaths) -> dict:
         "cfg": cfg,
         "context_path": context_path,
         "context": context,
-        "recpos_main_path": recpos_main_path,
+        "significant_main_path": significant_main_path,
         "main_heads": main_heads,
-        "significant_path": significant_path,
-        "significant": significant,
+        "selected_path": selected_path,
+        "selected": selected,
         "node_dir": node_dir,
         "periodic_path": periodic_path,
         "periodic": periodic,
@@ -305,7 +307,7 @@ def load_cell_tensors(
     """Merge the cell's z caches and slice everything the arms need (CPU).
 
     Returns per-head per-task z vectors (float64), the TRAIN-task per-head
-    means, the significant-set mean sum, mod-vector matrices, and c_star
+    means, the selected-set mean sum, mod-vector matrices, and c_star
     decisions.
     """
     import torch
@@ -343,9 +345,9 @@ def load_cell_tensors(
                 "refusing."
             )
 
-    sig_heads = [
+    selected_heads = [
         (int(layer_idx), int(head_idx))
-        for layer_idx, head_idx, *_ in resolved["significant"]["heads"]
+        for layer_idx, head_idx, *_ in resolved["selected"]["heads"]
     ]
     decisions = resolved["main_heads"]["decisions"]
     npz = np.load(resolved["npz_path"])
@@ -355,21 +357,21 @@ def load_cell_tensors(
         key = f"{layer_idx}:{head_idx}"
         if key not in decisions:
             raise ArtifactError(
-                f"head {key} has no c_star decision in {resolved['recpos_main_path']}"
+                f"head {key} has no c_star decision in {resolved['significant_main_path']}"
             )
         if key not in mod_vectors:
             raise ArtifactError(
                 f"head {key} has no fitted mod-vectors in {resolved['npz_path']}"
             )
 
-    needed = sorted(set(heads) | set(sig_heads))
+    needed = sorted(set(heads) | set(selected_heads))
     mean_z_head: dict[tuple[int, int], np.ndarray] = {}
     for layer_idx, head_idx in needed:
         acc = np.zeros(info["dims"]["d_model"], dtype=np.float64)
         for task in train_tasks:
             acc += z_results[task][layer_idx, head_idx].to(torch.float64).numpy()
         mean_z_head[(layer_idx, head_idx)] = acc / len(train_tasks)
-    sig_mean_sum = np.sum([mean_z_head[head] for head in sig_heads], axis=0)
+    selected_mean_sum = np.sum([mean_z_head[head] for head in selected_heads], axis=0)
 
     all_tasks = sorted(z_results, key=task_sort_key)
     z_head: dict[tuple[int, int], dict[str, np.ndarray]] = {
@@ -385,9 +387,9 @@ def load_cell_tensors(
         "all_tasks": all_tasks,
         "train_tasks": train_tasks,
         "heldout_tasks": heldout_tasks,
-        "sig_heads": sig_heads,
+        "selected_heads": selected_heads,
         "mean_z_head": mean_z_head,
-        "sig_mean_sum": sig_mean_sum,
+        "selected_mean_sum": selected_mean_sum,
         "decisions": decisions,
         "mod_vectors": mod_vectors,
     }
@@ -468,7 +470,7 @@ def evaluate_arm(
 
     head = arm["head"]
     mean_z_head = tensors["mean_z_head"][head]
-    others_mean = tensors["sig_mean_sum"] - mean_z_head
+    others_mean = tensors["selected_mean_sum"] - mean_z_head
     fvs = build_fv_vectors(
         tensors["z"][head], mean_z_head, others_mean, arm["basis"], arm["c_star"]
     )
@@ -550,7 +552,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--cell",
         required=True,
         choices=SUPPORTED_CELLS,
-        help="configs/step23_recpos_cells.tsv row (llama add / phi4 / qwen)",
+        help="configs/step23_significant_cells.tsv row (llama add / phi4 / qwen)",
     )
     parser.add_argument(
         "--heads",
@@ -581,7 +583,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--out-dir",
         default=None,
-        help="output directory (default: <recpos node>/projection-causal)",
+        help="output directory (default: <significant node>/projection-causal)",
     )
     parser.add_argument(
         "--dry-run",
@@ -652,14 +654,14 @@ def main(argv: list[str] | None = None) -> int:
 
         print(f"[projcausal] cell={args.cell} config={resolved['config_path']}")
         print(f"[projcausal] context={resolved['context_path']}")
-        print(f"[projcausal] recpos={resolved['recpos_main_path']}")
+        print(f"[projcausal] significant={resolved['significant_main_path']}")
         print(f"[projcausal] periodic={resolved['periodic_path']}")
         print(
             f"[projcausal] model={cfg.model.name} rev={cfg.model.revision} "
             f"dtype={cfg.model.dtype} inject={cfg.sites.inject_layer}"
         )
         print(
-            f"[projcausal] sig_heads={len(tensors['sig_heads'])} "
+            f"[projcausal] selected_heads={len(tensors['selected_heads'])} "
             f"tasks={len(eval_tasks)} test_limit={args.test_limit} bs={batch_size} "
             f"seed={args.seed}"
         )
@@ -728,12 +730,10 @@ def main(argv: list[str] | None = None) -> int:
             paths=paths,
             config=identity,
             inputs={
-                "recpos_main_heads": {
-                    "path": paths.relativize(resolved["recpos_main_path"])
+                "significant_main_heads": {
+                    "path": paths.relativize(resolved["significant_main_path"])
                 },
-                "significant_heads": {
-                    "path": paths.relativize(resolved["significant_path"])
-                },
+                "selected_heads": {"path": paths.relativize(resolved["selected_path"])},
                 "periodic": {
                     "path": paths.relativize(resolved["periodic_path"]),
                     "mod_vectors_sha256": resolved["periodic"]["mod_vectors_sha256"],

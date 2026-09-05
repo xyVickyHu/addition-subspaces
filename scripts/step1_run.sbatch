@@ -12,7 +12,7 @@
 # reduced-sample runtime calibration -> report command/runtime/VRAM ->
 # approval -> full 100/task scan. Before submission, the resolved identity (pinned
 # revision, checkpoint sha, fingerprints) must be recorded via
-# `python -m subspaces.runners.step1 select-significant --config <cfg>` (CPU).
+# `python -m subspaces.runners.step1 extract-selected --config <cfg>` (CPU).
 set -euo pipefail
 
 CONFIG="${1:?usage: sbatch scripts/step1_run.sbatch <config.yaml> [extra args]}"

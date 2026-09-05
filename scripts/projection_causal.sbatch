@@ -7,8 +7,8 @@
 # Appendix F regeneration launcher (thin wrapper):
 #
 #   F — subspaces.runners.run_projection_causal: onto/out-of mod-vector subspace
-#       causal projections per cell of configs/step23_recpos_cells.tsv
-#       (results land in <recpos node>/projection-causal/).
+#       causal projections per cell of configs/step23_significant_cells.tsv
+#       (results land in <significant node>/projection-causal/).
 #
 #   sbatch -p YOUR_PARTITION scripts/projection_causal.sbatch smoke
 #   sbatch -p YOUR_PARTITION scripts/projection_causal.sbatch {add|phi4|qwen} [extra args...]

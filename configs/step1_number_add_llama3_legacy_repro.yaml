@@ -5,7 +5,7 @@
 #
 # Targets (repo README, bootstrap-CI evaluation, tolerance ±0.02–0.04):
 #   clean 0.8567, sum_33 0.7817, main+mean-ablation 0.7017
-# Verified repo rerun 2026-07-04: 0.860 / 0.777 / 0.703, 33 significant heads.
+# Verified repo rerun 2026-07-04: 0.860 / 0.777 / 0.703, 33 selected heads.
 #
 # NEVER compare numbers from this config against corrected_holdout numbers
 # without labeling the protocols — they differ in task scope and sample counts.
@@ -35,7 +35,7 @@ samples:
   # spec (same legacy draw algorithm + seed) so the held-out z coincides
   heldout_activation: {examples_per_task: 100, seed: 42, task_set: all}
   final_eval: {examples_per_task: 10, seed: 42, task_set: all}
-significant:
+selected:
   method: elbow
 scan:
   c_min: 0

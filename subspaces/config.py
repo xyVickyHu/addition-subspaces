@@ -1,7 +1,7 @@
 """Typed configuration: YAML validation and resolved-config output.
 
 A config file fully describes one Step-1 variant (model, task family, prompt
-format, sites, matrix training, sample protocol, significant selector, scan,
+format, sites, matrix training, sample protocol, selected selector, scan,
 main selector, seeds, compute). Loading rejects unknown keys and wrong types;
 every run dumps its fully resolved config next to its outputs.
 
@@ -170,7 +170,7 @@ class AIEConfig:
     per-head average-indirect-effect scores on the committed TRAIN tasks,
     top-k selection by SIGNED score, and Todd-FV evaluation on the held-out
     tasks under the standard eval protocol. A parallel, fully fingerprinted
-    artifact chain — it never enters the significant→scan→main lineage, and
+    artifact chain — it never enters the selected→scan→main lineage, and
     the whole block is excluded from run identity (``requested_semantics``)
     like ``main_selector``: variants live side-by-side as hash-named
     artifacts under one journal run."""
@@ -180,7 +180,7 @@ class AIEConfig:
     corrupted_examples_per_task: int = 25
     corrupted_seed: int = 42
     corruption_tries: int = 20
-    # no default: every cell names its k values explicitly (sig-matched +
+    # no default: every cell names its k values explicitly (selected-matched +
     # paper-indicated counts; see configs/step1_*_aie.yaml)
     k_values: list[int] = field(default_factory=list)
     batch_size: int = 25  # cie_replace scoring batch (corrupted prompts)
@@ -190,9 +190,9 @@ class AIEConfig:
 
 
 @dataclass
-class SignificantConfig:
+class SelectedConfig:
     """Discriminated by ``(method, method_version)`` against the registry in
-    ``subspaces.step1.significant.METHOD_PARAM_SCHEMAS``: only the method's own
+    ``subspaces.step1.selected.METHOD_PARAM_SCHEMAS``: only the method's own
     parameters may be set."""
 
     method: str = "elbow"  # elbow | fraction | fixed | largest_gap
@@ -208,7 +208,7 @@ class ScanConfig:
     # redefine every gain. Kept as a field so artifacts record it explicitly.
     c_min: int = 0
     c_max: int = 20
-    # Debug/smoke knob: scan only the top-N significant heads (None = all).
+    # Debug/smoke knob: scan only the top-N selected heads (None = all).
     head_limit: int | None = None
 
 
@@ -250,7 +250,7 @@ class RawCoefConfig:
 
     ``raw_coef`` is the training-time function vector: every matrix head is
     weighted by its coefficient from the final training checkpoint.  The
-    trailing checkpoint mean may be used to select significant heads, but it
+    trailing checkpoint mean may be used to select selected heads, but it
     is never the coefficient source for this metric.
     """
 
@@ -273,7 +273,7 @@ class Step1Config:
     sites: SitesConfig = field(default_factory=SitesConfig)
     matrix: MatrixConfig = field(default_factory=MatrixConfig)
     samples: SamplesConfig = field(default_factory=SamplesConfig)
-    significant: SignificantConfig = field(default_factory=SignificantConfig)
+    selected: SelectedConfig = field(default_factory=SelectedConfig)
     scan: ScanConfig = field(default_factory=ScanConfig)
     main_selector: SelectorConfig = field(default_factory=SelectorConfig)
     scoring: ScoringConfig = field(default_factory=ScoringConfig)
@@ -435,39 +435,39 @@ class Step1Config:
             raise ConfigError(
                 "main_selector.pin_heads is only valid with the pin selector"
             )
-        # -- discriminated significant schema (registry-validated at load) --
-        from subspaces.step1.significant import METHOD_PARAM_SCHEMAS
+        # -- discriminated selected schema (registry-validated at load) --
+        from subspaces.step1.selected import METHOD_PARAM_SCHEMAS
 
-        sig = self.significant
-        sig_key = (sig.method, sig.method_version)
-        if sig_key not in METHOD_PARAM_SCHEMAS:
+        selected = self.selected
+        selected_key = (selected.method, selected.method_version)
+        if selected_key not in METHOD_PARAM_SCHEMAS:
             registered = ", ".join(
                 f"{name} v{version}" for name, version in sorted(METHOD_PARAM_SCHEMAS)
             )
             raise ConfigError(
-                f"unknown significant method {sig.method!r} "
-                f"v{sig.method_version} (registered: {registered})"
+                f"unknown selected-set method {selected.method!r} "
+                f"v{selected.method_version} (registered: {registered})"
             )
-        allowed_params = METHOD_PARAM_SCHEMAS[sig_key]
+        allowed_params = METHOD_PARAM_SCHEMAS[selected_key]
         # the parameter universe derives from the dataclass, so a future
         # method's new parameter field is checked without touching this loop
-        sig_params = [
+        selected_params = [
             f.name
-            for f in dataclasses.fields(sig)
+            for f in dataclasses.fields(selected)
             if f.name not in ("method", "method_version")
         ]
-        missing_fields = allowed_params - set(sig_params)
+        missing_fields = allowed_params - set(selected_params)
         if missing_fields:  # registry names a param with no config field
             raise ConfigError(
-                f"significant method {sig.method!r} declares parameter(s) "
-                f"{sorted(missing_fields)} with no SignificantConfig field"
+                f"selected-set method {selected.method!r} declares parameter(s) "
+                f"{sorted(missing_fields)} with no SelectedConfig field"
             )
-        for param in sig_params:
-            value = getattr(sig, param)
+        for param in selected_params:
+            value = getattr(selected, param)
             if param in allowed_params and value is None:
-                raise ConfigError(f"significant.method={sig.method} requires {param}")
+                raise ConfigError(f"selected.method={selected.method} requires {param}")
             if param not in allowed_params and value is not None:
-                raise ConfigError(f"significant.method={sig.method} takes no {param}")
+                raise ConfigError(f"selected.method={selected.method} takes no {param}")
         if self.scan.c_min != 0:
             raise ConfigError(
                 "scan.c_min must be 0 (selector gains are defined against the "
@@ -651,6 +651,13 @@ def load_step1_config(path: str | Path) -> Step1Config:
             f"{path}: schema_version {declared} not supported (expected "
             f"{SCHEMA_VERSION})"
         )
+    if "significant" in raw:
+        raise ConfigError(
+            f"{path}: the 'significant:' section was renamed 'selected:' "
+            "(camera-ready head-set terminology, 2026-09: selected = the "
+            "sparse-optimization set, significant = the paired-test set); "
+            "rename the key"
+        )
     cfg = _build(Step1Config, raw, where="step1")
     cfg.validate()
     return cfg
@@ -671,7 +678,7 @@ def requested_semantics(cfg: Step1Config) -> dict:
     # The main selector is NOT part of the run identity: selection is pure CPU
     # over the persisted scan, and selector variants live side-by-side inside
     # ONE run (hash-named main_heads/headset_eval/heads artifacts). Changing
-    # the selector must reuse the matrix, significant heads, caches, and scan.
+    # the selector must reuse the matrix, selected heads, caches, and scan.
     resolved.pop("main_selector", None)
     # The AIE baseline (subspaces/step1/aie.py) is likewise a parallel chain: its
     # methods/k/corruption knobs ride in the hash-named aie artifacts, so

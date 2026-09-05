@@ -73,7 +73,7 @@ python -m subspaces.runners.run_pipeline \
 ```
 
 This runs, in order: (1) matrix reuse (or training from scratch when no matrix
-is given), (2) significant-head extraction plus the function-vector evaluations,
+is given), (2) selected-head extraction plus the function-vector evaluations,
 narrowing down to the paper's three main heads (layer 15 head 2, layer 15
 head 1, layer 13 head 6) via mean-ablation, (3) per-head PCA and the
 six-dimensional period/magnitude basis fit (paper Section 4), (4) the
@@ -100,13 +100,35 @@ prompts):
 The paper's AIE baselines, a paper-faithful re-implementation of Todd et al.'s average indirect effect (e.g. top-33 = 0.414 on Llama-3 add-k), reproduce via the `configs/step1_*_aie.yaml` cells with `subspaces.runners.step1`.
 
 `python -m subspaces.runners.verify_reproducibility` is a CPU-only sanity check that
-the shipped matrix reproduces the paper's 33-head significant set and the
+the shipped matrix reproduces the paper's 33-head selected set and the
 three main heads.
 
 **[docs/REPRODUCING.md](docs/REPRODUCING.md) is the full reproduction guide**:
 per-phase entry points, training the matrix from scratch, the activation-cache
 behavior behind the tolerance above, prompt formats, and the shipped task
 datasets and splits.
+
+## Head-set terminology
+
+The code uses the paper's names for the three nested head sets (Section 3):
+
+| set | how it is chosen | Llama-3-8B add-k | in the code |
+|---|---|---|---|
+| **selected** | sparse-optimization coefficient matrix, cut at its largest gap (`largest_gap`; `elbow` / `fraction` / `fixed` are alternatives) | 33 | `selected:` config section, `extract-selected` subcommand, `selected-<method>-v<V>/selected_heads.json` |
+| **significant** | paired McNemar test + Benjamini-Hochberg over the recovery scan (`paired_bh` q=0.05) | 13 | `significant-<selector>-v<V>-<h8>/main_heads.json` (the selector-output contract) |
+| **main** | quarter-of-the-best-recovery-gain rule (`unified` v1) | 3 | `main-<selector>-v<V>-<h8>/main_heads.json` |
+
+"Statistically significant" keeps its ordinary meaning (the paired selectors'
+test verdicts). The pre-2026-09 code called the selected set "significant"
+(`sig`) and the significant set "recovery-positive" (`recpos`); artifacts
+written under that spelling (including the shipped legacy stage outputs under
+`artifacts/`) are translated on read, and every fingerprint is computed over the
+legacy spelling so identities never fork; see the terminology block in
+`subspaces/artifacts.py` (`LEGACY_KEY_SPELLING`). Two counts keep distinct names
+because `n_selected` (the number of heads a selector chose) predates the rename:
+the size of the selected set is `n_selected_set` in headset evaluations, and
+the number of heads a scan covered (the selected set unless `scan.head_limit`
+truncates it) is `n_scanned` in selector verdicts.
 
 ## Repository layout
 

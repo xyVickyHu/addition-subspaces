@@ -1,4 +1,4 @@
-"""Paper phase 1 (post-training) — extract significant heads from a trained matrix.
+"""Paper phase 1 (post-training) — extract selected heads from a trained matrix.
 
 Loads the latest ``matrix_epoch*.pth`` under ``<log_dir>/checkpoints/`` and
 writes a JSONL of ``{"head position": [layer, head], "coefficient": coef}``

@@ -4,7 +4,7 @@ Two things this asserts/reports (no GPU, no model forward pass — pure matrix +
 precomputed-accuracy loads):
 
 1. **Addition baseline reproduces (asserted).**
-   - Significant heads: ``select_heads(canon, 0.2)`` returns exactly the paper's
+   - Selected heads: ``select_heads(canon, 0.2)`` returns exactly the paper's
      33-head set, and it equals the legacy ``head_ordered.jsonl`` coef>0.2 set.
    - Main heads: ``auto_main_heads(rank_by='accuracy', k=3)`` returns the paper's
      ``{(13,6),(15,2),(15,1)}`` from the cached per-head ``head_acc_dict.pth``.
@@ -13,7 +13,7 @@ precomputed-accuracy loads):
 2. **Beyond-addition head selection (reported, not asserted).**
    For each non-addition coefficient matrix that exists on disk
    (``abstractive``/``extractive``/``number_mul``/``number``) it tabulates the
-   significant-head set (elbow + |coef|>0.2), the top heads, and whether the
+   selected-head set (elbow + |coef|>0.2), the top heads, and whether the
    per-head accuracy dict needed for *main*-head selection is present. These
    matrices are *unbounded* (not clipped to [0,1]), so the 0.2 threshold is not
    pre-calibrated for them — the scale-free elbow is the meaningful selector.
@@ -48,7 +48,7 @@ from subspaces.utils.heads import (  # noqa: E402
 )
 
 CANON_DIR = "artifacts/matrix_add_0204_clip_lambda0.05"
-PAPER_SIG_COUNT = 33
+PAPER_SELECTED_COUNT = 33
 PAPER_MAIN_HEADS = {(13, 6), (15, 2), (15, 1)}
 NONADD_TASKS = ("abstractive", "extractive", "number_mul")
 
@@ -68,12 +68,12 @@ def _pick_matrix_dir(task: str) -> str | None:
 
 
 def verify_addition() -> dict:
-    """Assert the paper add baseline (33 significant + 3 main). Returns a report dict."""
+    """Assert the paper add baseline (33 selected + 3 main). Returns a report dict."""
     d = str(PROJECT_ROOT / CANON_DIR)
     matrix, ckpt = load_latest_matrix(d)
 
-    sig = select_heads(matrix, 0.2)
-    sig_set = {(int(l), int(h)) for (l, h) in sig}
+    selected = select_heads(matrix, 0.2)
+    selected_set = {(int(l), int(h)) for (l, h) in selected}
 
     # Cross-check against the legacy head_ordered.jsonl coef>0.2 set.
     legacy_path = os.path.join(d, "head_ordered.jsonl")
@@ -89,20 +89,20 @@ def verify_addition() -> dict:
     main = auto_main_heads(matrix, k=3, rank_by="accuracy", matrix_dir=d)
     main_set = {(int(l), int(h)) for (l, h) in main}
 
-    sig_ok = len(sig) == PAPER_SIG_COUNT
-    legacy_ok = (legacy_set is None) or (sig_set == legacy_set)
+    selected_ok = len(selected) == PAPER_SELECTED_COUNT
+    legacy_ok = (legacy_set is None) or (selected_set == legacy_set)
     main_ok = main_set == PAPER_MAIN_HEADS
 
     report = {
         "matrix_dir": CANON_DIR,
         "checkpoint": os.path.basename(ckpt),
-        "n_significant_at_0.2": len(sig),
-        "significant_ok": sig_ok,
+        "n_selected_set_at_0.2": len(selected),
+        "selected_ok": selected_ok,
         "matches_legacy_jsonl": legacy_ok,
         "main_heads_accuracy_mode": sorted(main_set),
         "main_heads_ok": main_ok,
         "elbow_threshold": round(auto_threshold(matrix, method="elbow"), 4),
-        "passed": bool(sig_ok and legacy_ok and main_ok),
+        "passed": bool(selected_ok and legacy_ok and main_ok),
     }
     return report
 
@@ -117,8 +117,8 @@ def report_beyond_addition() -> list[dict]:
             continue
         matrix, ckpt = load_latest_matrix(d)
         elbow = auto_threshold(matrix, method="elbow")
-        sig_elbow = select_heads(matrix, elbow)
-        sig_02 = select_heads(matrix, 0.2)
+        selected_elbow = select_heads(matrix, elbow)
+        selected_02 = select_heads(matrix, 0.2)
         top = auto_main_heads(matrix, k=8, rank_by="coef")
         has_acc = bool(_load_per_head_accuracy_dict(d, n_shot=5))
         rows.append(
@@ -129,9 +129,9 @@ def report_beyond_addition() -> list[dict]:
                 "clipped_0_1": bool(matrix.min().item() >= 0),
                 "coef_min": round(matrix.min().item(), 3),
                 "coef_max": round(matrix.max().item(), 3),
-                "n_sig_elbow": len(sig_elbow),
+                "n_selected_elbow": len(selected_elbow),
                 "elbow_threshold": round(elbow, 4),
-                "n_sig_at_0.2": len(sig_02),
+                "n_selected_set_at_0.2": len(selected_02),
                 "top8_by_coef": [list(map(int, t)) for t in top],
                 "main_heads_cpu_available": has_acc,
                 "main_heads_note": (
@@ -160,8 +160,8 @@ def main() -> int:
     print("=" * 72)
     print(f"  matrix:           {add['matrix_dir']} [{add['checkpoint']}]")
     print(
-        f"  significant @0.2: {add['n_significant_at_0.2']}  (expect {PAPER_SIG_COUNT})  "
-        f"-> {'OK' if add['significant_ok'] else 'FAIL'}"
+        f"  selected @0.2: {add['n_selected_set_at_0.2']}  (expect {PAPER_SELECTED_COUNT})  "
+        f"-> {'OK' if add['selected_ok'] else 'FAIL'}"
     )
     print(f"  == legacy jsonl:  {add['matches_legacy_jsonl']}")
     print(
@@ -185,7 +185,7 @@ def main() -> int:
         print(f"  {r['task']:<14} {r['matrix_dir']}")
         print(
             f"  {'':<14} signed={not r['clipped_0_1']} coef[{r['coef_min']},{r['coef_max']}] | "
-            f"elbow={r['elbow_threshold']} -> {r['n_sig_elbow']} sig | |coef|>0.2 -> {r['n_sig_at_0.2']} sig"
+            f"elbow={r['elbow_threshold']} -> {r['n_selected_elbow']} selected | |coef|>0.2 -> {r['n_selected_set_at_0.2']} selected"
         )
         print(f"  {'':<14} top8|coef|: {[tuple(t) for t in r['top8_by_coef']]}")
         print(f"  {'':<14} main heads: {r['main_heads_note']}")

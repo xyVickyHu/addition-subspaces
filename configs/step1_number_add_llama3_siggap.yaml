@@ -1,10 +1,10 @@
-# Significant-method variant of step1_number_add_llama3.yaml: identical
+# Selected-set method variant of step1_number_add_llama3.yaml: identical
 # corrected 25/5 protocol on the CANONICAL legacy matrix (byte-identical to
 # the legacy run [0,1]_matrix_add_0204_clip_lambda0.05, checkpoint epoch 49,
-# sha256 a143e582...), but significant.method = largest_gap — cut the
+# sha256 a143e582...), but selected.method = largest_gap — cut the
 # descending |coef| curve at its largest consecutive drop and keep every head
 # at or above the drop's upper edge (parameter-free).
-# Only select-significant has been run for this
+# Only extract-selected has been run for this
 # variant so far (CPU); scan/evaluate-headset follow the usual gate ladder.
 schema_version: 1
 run_name: addllama_siggap
@@ -31,7 +31,7 @@ samples:
   scan: {examples_per_task: 100, seed: 42, task_set: train}
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
-significant:
+selected:
   method: largest_gap
 scan:
   c_min: 0

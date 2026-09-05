@@ -24,7 +24,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from subspaces.artifacts import ArtifactError, semantic_fingerprint
+from subspaces.artifacts import ArtifactError, modernize, semantic_fingerprint
 from subspaces.head_sets import read_heads_manifest
 from subspaces.paths import ProjectPaths
 from subspaces.step2.pca import samples_protocol_index
@@ -32,7 +32,7 @@ from subspaces.step2.pca import samples_protocol_index
 
 def _load_json(path: Path) -> dict:
     with open(path, encoding="utf-8") as fh:
-        return json.load(fh)
+        return modernize(json.load(fh))
 
 
 def walk_to_scan(paths: ProjectPaths, artifact_path: Path) -> dict:

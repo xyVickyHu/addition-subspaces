@@ -1,6 +1,6 @@
 # Step-1 GATE-2 variant: FROM-SCRATCH matrix training, addition +
 # Llama-3-8B-Instruct, then the full corrected 25/5 Step-1 downstream
-# (identical to step1_number_add_llama3.yaml from select-significant on).
+# (identical to step1_number_add_llama3.yaml from extract-selected on).
 #
 # Training reproduces the historical procedure exactly (legacy trainer driven
 # in-process with explicit args): fixed committed 25/5 split as indist/ood
@@ -15,7 +15,7 @@
 # ported defaults. Validation is therefore by preregistered OUTCOME
 # tolerances (Gate 2), not hyperparameter
 # provenance. A retrained matrix is NOT expected to be byte-identical: the
-# historical same-config retrain changed the significant-head count 33 -> 36
+# historical same-config retrain changed the selected-head count 33 -> 36
 # while unified-v1 still selected exactly the paper trio (E1b, FINDINGS.md).
 schema_version: 1
 run_name: addllama_train
@@ -52,7 +52,7 @@ samples:
   scan: {examples_per_task: 100, seed: 42, task_set: train}
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
-significant:
+selected:
   method: elbow
 scan:
   c_min: 0

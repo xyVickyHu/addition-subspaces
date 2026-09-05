@@ -2,11 +2,11 @@
 # matrix; artifacts/matrix_sub_meta-llama-3-8b-instruct_lambda0.05,
 # final-ckpt sha 0b6ca9d40688…, see artifacts/PORTED_MATRICES.md).
 # Expansion-cell defaults per the 2026-07-26 user answers: largest_gap
-# significant on the mean-last-3 substrate + unified-v1 main in-run
+# selected on the mean-last-3 substrate + unified-v1 main in-run
 # (largest_gap main via CPU select-main afterwards). FULL leg (headline
 # per Q8): scan 100/task; calib PASSED 2026-07-26 (GPU run, 53m: 28
-# gap sig heads; unified main = ADD trio + (15,17), localized; held-out
-# clean 0.526 / full_sig 0.330 / raw 0.468). Committed 26/5 subtract split
+# gap selected heads; unified main = ADD trio + (15,17), localized; held-out
+# clean 0.526 / full_selected 0.330 / raw 0.468). Committed 26/5 subtract split
 # (recovered verbatim from the historical args.json).
 #   sbatch -p YOUR_PARTITION scripts/step1_run.sbatch <this>
 schema_version: 1
@@ -34,7 +34,7 @@ samples:
   scan: {examples_per_task: 100, seed: 42, task_set: train}
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
-significant:
+selected:
   method: largest_gap
 scan:
   c_min: 0

@@ -39,7 +39,7 @@ A self-contained stage family per (model × task-family) cell:
    identical protocol and z tensors (heldout_activation cache, seed 1043) to
    the framework's headset evaluation.
 
-The chain deliberately does NOT enter the significant→scan→main lineage: no
+The chain deliberately does NOT enter the selected→scan→main lineage: no
 scan is needed, artifacts are hash-named under ``<journal run dir>/aie/``,
 and reuse follows the shared refuse-on-mismatch rule. This module's IMPL is
 deliberately NOT added to ``subspaces.step1.resolve.algorithm_versions()`` — that
@@ -81,7 +81,7 @@ HEAD_ORDER = "row_major(layer_idx,head_idx)"
 
 def impl_for(method: str) -> dict:
     """Implementation identity for one AIE method: shared-engine version plus
-    the method's own (name, version) — mirrors subspaces.step1.significant."""
+    the method's own (name, version) — mirrors subspaces.step1.selected."""
     if method not in METHOD_VERSIONS:
         raise ConfigError(
             f"unknown AIE method {method!r}; registered: {sorted(METHOD_VERSIONS)}"

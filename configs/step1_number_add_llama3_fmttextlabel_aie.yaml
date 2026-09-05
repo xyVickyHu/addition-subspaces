@@ -1,7 +1,7 @@
 # AIE baseline cell — number_add / Llama-3, format textlabel (clone of
 # step1_number_add_llama3_fmttextlabel_siggap_avg3.yaml + the aie blocks from
 # step1_number_add_llama3_aie.yaml; the aie stage never reads the matrix).
-# k rationale: 24 = sig-matched (largest_gap@avg3 count for the textlabel
+# k rationale: 24 = selected-matched (largest_gap@avg3 count for the textlabel
 # cell, per the sweep results); 20 = paper-indicated (~2% of the 1024-head grid).
 #   .venv/bin/python -m subspaces.runners.step1 make-samples --config <this>   # CPU
 #   sbatch -p YOUR_PARTITION scripts/step1_aie.sbatch <this>               # GPU
@@ -31,7 +31,7 @@ samples:
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
   aie_corrupted: {examples_per_task: 25, seed: 42, task_set: train}
-significant:
+selected:
   method: largest_gap
 scan:
   c_min: 0

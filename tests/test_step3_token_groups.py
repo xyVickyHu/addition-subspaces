@@ -380,7 +380,7 @@ def analysis_repo(fake_repo):
         schema_version=1,
         paths=paths,
         payload={
-            "significant_heads": [[1, 2], [2, 3]],
+            "selected_heads": [[1, 2], [2, 3]],
             "main_heads": [list(HEAD)],
             "minor_heads": [],
             "selector": {"name": "largest_gap", "version": 1, "params": {}},
@@ -625,13 +625,15 @@ def test_blank_heads_flag_falls_back_to_artifact(analysis_repo, step3_stubs):
 
 
 def test_selector_node_main_heads_artifact_accepted(analysis_repo, step3_stubs):
-    """A selector node's main_heads.json (e.g. a recpos node) works directly:
+    """A selector node's main_heads.json (e.g. a significant node) works directly:
     heads resolve, and the selector provenance comes from the top-level
     selector_name/selector_version/params fields of that kind."""
     root = analysis_repo["root"]
     paths = ProjectPaths.from_root(root)
-    recpos_dir = root / "log" / "runs" / "toy__abc" / "recpos-paired_bh-v1-beef0123"
-    recpos_dir.mkdir(parents=True)
+    significant_dir = (
+        root / "log" / "runs" / "toy__abc" / "significant-paired_bh-v1-beef0123"
+    )
+    significant_dir.mkdir(parents=True)
     manifest = make_manifest(
         kind="main_heads",
         schema_version=1,
@@ -647,13 +649,15 @@ def test_selector_node_main_heads_artifact_accepted(analysis_repo, step3_stubs):
             "verdict": {},
         },
     )
-    write_json_atomic(recpos_dir / "main_heads.json", manifest)
+    write_json_atomic(significant_dir / "main_heads.json", manifest)
 
     # the wave pattern: the context pins the SAME artifact the CLI passes
     context = yaml.safe_load(analysis_repo["context"].read_text(encoding="utf-8"))
-    context["heads_artifact"] = str((recpos_dir / "main_heads.json").relative_to(root))
-    recpos_context = root / "configs" / "step3_context_recpos.yaml"
-    recpos_context.write_text(yaml.safe_dump(context), encoding="utf-8")
+    context["heads_artifact"] = str(
+        (significant_dir / "main_heads.json").relative_to(root)
+    )
+    significant_context = root / "configs" / "step3_context_significant.yaml"
+    significant_context.write_text(yaml.safe_dump(context), encoding="utf-8")
 
     assert (
         step3_cli.main(
@@ -661,18 +665,18 @@ def test_selector_node_main_heads_artifact_accepted(analysis_repo, step3_stubs):
                 "--root",
                 str(root),
                 "--context",
-                str(recpos_context),
+                str(significant_context),
                 "--n-boot",
                 "50",
                 "--heads-artifact",
-                str((recpos_dir / "main_heads.json").relative_to(root)),
+                str((significant_dir / "main_heads.json").relative_to(root)),
                 "--head-set",
                 "main",
             ]
         )
         == 0
     )
-    artifact_path = next(recpos_dir.glob("step3-tokengroups-*.json"))
+    artifact_path = next(significant_dir.glob("step3-tokengroups-*.json"))
     artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
     assert artifact["head_set_provenance"]["selector"] == {
         "name": "paired_bh",
@@ -687,7 +691,7 @@ def test_cli_heads_artifact_must_match_context_heads(
 ):
     """A CLI --heads-artifact that disagrees in CONTENT with the context's
     pinned heads_artifact is refused (lineage honesty), while a same-content
-    alias passes (covered by the recpos test above)."""
+    alias passes (covered by the significant test above)."""
     root = analysis_repo["root"]
     paths = ProjectPaths.from_root(root)
     other_dir = root / "log" / "runs" / "toy__abc" / "main-other-v1-0dd0"

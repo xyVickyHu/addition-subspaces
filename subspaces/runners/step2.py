@@ -5,7 +5,7 @@
 
     # PCA of the main heads of a selector node over its cell's z caches
     python -m subspaces.runners.step2 \\
-        --heads-artifact log/runs/<node>__<id12>/sig-largest_gap-v1/scan-<tag>/main-largest_gap-v1-<h8>/main_heads.json \\
+        --heads-artifact log/runs/<node>__<id12>/selected-largest_gap-v1/scan-<tag>/main-largest_gap-v1-<h8>/main_heads.json \\
         --head-set main --context configs/contexts/<cell>.yaml
 
 Execution requires ``--context``; the artifact (kind ``step2_subspace``) lands
@@ -47,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
         "main_heads.json",
     )
     parser.add_argument(
-        "--head-set", default="main", choices=("main", "significant", "minor")
+        "--head-set", default="main", choices=("main", "selected", "minor")
     )
     parser.add_argument(
         "--context",

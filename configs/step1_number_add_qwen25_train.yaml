@@ -8,13 +8,13 @@
 # blocks.10.hook_resid_mid, arrow, 5-shot, committed add 25/5 split
 # (task_dir number_add ≡ the historical number_add_1018, byte-identical).
 # Historical anchor for the retrain outcome (paper-repro matrix): 262
-# elbow-significant heads; main heads (21,0)(21,5)(21,2)(21,4) — the
+# elbow-selected heads; main heads (21,0)(21,5)(21,2)(21,4) — the
 # paper's L21 trio + (21,4). Gate-2 caveat applies: a retrain reproduces
 # shape/selection, NOT unit-coefficient composite values.
 # GPU: 80GB-node pin (cross-model record: Qwen/Phi jobs OOM on 40GB
 # A100s at model load or bs=128) — submit with
 #   sbatch -p YOUR_PARTITION -w YOUR_80GB_NODE scripts/step1_train_only.sbatch <this>
-# Downstream scan/eval legs are gated by the Q5 significant-count check
+# Downstream scan/eval legs are gated by the Q5 selected-count check
 # (largest_gap@mean-last-3 vs elbow's historical 262) before submission.
 schema_version: 1
 run_name: addqwen25_train
@@ -52,7 +52,7 @@ samples:
   scan: {examples_per_task: 20, seed: 42, task_set: train}
   heldout_activation: {examples_per_task: 100, seed: 1043, task_set: eval}
   final_eval: {examples_per_task: 100, seed: 42, task_set: eval}
-significant:
+selected:
   method: largest_gap
 scan:
   c_min: 0
